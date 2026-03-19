@@ -1,0 +1,41 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Wirtualne środowiska
+.venv/
+venv/
+
+# Biblioteki skompilowane lokalnie
+cpu/lib/*.so
+cpu/lib/*.dylib
+cpu/lib/*.dll
+gpu/cuda/lib/*.so
+gpu/cuda/lib/*.dylib
+gpu/cuda/lib/*.dll
+gpu/hip/lib/*.so
+gpu/hip/lib/*.dylib
+gpu/hip/lib/*.dll
+
+# Wyniki i raporty lokalne
+data/
+reports/
+analysis/plots/
+analysis/roofline_out/
+
+# Cache i pliki systemowe
+.cache/
+.DS_Store
+
+# Duze archiwa referencyjne
+Kod Filipa/*.tar
+Kod Filipa/*.tgz
+Kod Filipa/*.tar.gz
+
+# Pliki tymczasowe edytorów
+*.swp
+*.swo
+.idea/
+.vscode/
