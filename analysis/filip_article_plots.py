@@ -39,6 +39,7 @@ OPTION_FIELDS = [
     "use_workspace_for_stiff_mat",
     "padding",
 ]
+FILIP_OPTION_LABEL = "Options (9 bits, Filip order)"
 VARIANT_ORDER = ["qss", "sqs", "ssq"]
 PREFERRED_PLOT_ORDER = [
     "article_paper_option_times.png",
@@ -118,10 +119,17 @@ def _variant_title(name: str) -> str:
     return str(name).upper()
 
 
-def _combo_bits(cfg: dict[str, Any]) -> str:
+def _combo_bits(cfg: dict[str, Any], option_row: Any | None = None) -> str:
+    if isinstance(option_row, (list, tuple)) and len(option_row) >= 9:
+        return "".join("1" if _safe_int(v, 0) != 0 else "0" for v in option_row[:9])
+
     bits = []
-    for key in OPTION_FIELDS:
+    for key in OPTION_FIELDS[:-1]:
         bits.append("1" if _safe_int(cfg.get(key), 0) != 0 else "0")
+
+    padding = 1 if _safe_int(cfg.get("padding"), 0) != 0 else 0
+    bits.append("1" if padding == 0 else "0")
+    bits.append("1" if padding == 1 else "0")
     return "".join(bits)
 
 
@@ -187,7 +195,9 @@ def _normalized_eval_row(raw: dict[str, Any], *, summary: dict[str, Any], out_di
         "constraints_ok": _safe_int(raw.get("constraints_ok", 0)) == 1,
         "operator": operator,
         "variant": variant,
-        "combo_bits": _combo_bits(cfg),
+        "combo_bits": _combo_bits(cfg, raw.get("option_row")),
+        "option_index": _safe_int(raw.get("option_index"), -1),
+        "option_row": list(raw.get("option_row", [])) if isinstance(raw.get("option_row"), list) else [],
         "backend": backend,
         "device": device,
         "label": _row_label({"backend": backend, "device": device}),
@@ -444,6 +454,7 @@ def _preferred_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _best_by_combo(rows: Iterable[dict[str, Any]], operator: str, variant: str) -> tuple[list[str], list[float]]:
     best: dict[str, float] = {}
+    order_map: dict[str, int] = {}
     for row in rows:
         if row.get("operator") != operator or row.get("variant") != variant:
             continue
@@ -451,10 +462,22 @@ def _best_by_combo(rows: Iterable[dict[str, Any]], operator: str, variant: str) 
         ns_val = _safe_float(row.get("ns_per_unit"))
         if not math.isfinite(ns_val):
             continue
+        option_index = _safe_int(row.get("option_index"), -1)
+        if option_index >= 0:
+            prev_idx = order_map.get(combo)
+            if prev_idx is None or option_index < prev_idx:
+                order_map[combo] = option_index
         prev = best.get(combo)
         if prev is None or ns_val < prev:
             best[combo] = ns_val
-    combos = sorted(best.keys(), key=_combo_sort_key)
+    combos = sorted(
+        best.keys(),
+        key=lambda combo: (
+            0 if combo in order_map else 1,
+            order_map.get(combo, 10**9),
+            _combo_sort_key(combo),
+        ),
+    )
     return combos, [best[c] for c in combos]
 
 
@@ -740,20 +763,19 @@ def _apply_robust_ylim(ax: Any, values: Iterable[float]) -> None:
         )
 
 
-def _combo_ticks(combos: list[str]) -> tuple[list[int], list[str]]:
-    if not combos:
-        return [], []
-    n_points = len(combos)
-    stride = max(1, n_points // 8)
-    tick_idx = list(range(0, n_points, stride))
-    if tick_idx[-1] != n_points - 1:
-        tick_idx.append(n_points - 1)
-    tick_labels = [combos[idx] for idx in tick_idx]
-    return tick_idx, tick_labels
-
-
 def _stacked_combo_label(bits: str) -> str:
     return "\n".join(list(str(bits)))
+
+
+def _combo_fontsize(combos: list[str]) -> float:
+    n_points = len(combos)
+    if n_points >= 72:
+        return 4.0
+    if n_points >= 48:
+        return 4.4
+    if n_points >= 24:
+        return 4.8
+    return 5.4
 
 
 def _run_series_label(run: dict[str, Any]) -> str:
@@ -793,11 +815,28 @@ def _paper_line_styles(n: int) -> list[dict[str, Any]]:
 
 def _combo_union_for_series(series_runs: list[dict[str, Any]], operator: str, variant: str) -> list[str]:
     combos: set[str] = set()
+    order_map: dict[str, int] = {}
     for run in series_runs:
         run_rows = _status_ok_rows(run.get("rows", []))
         cur_combos, _ = _best_by_combo(run_rows, operator, variant)
         combos.update(cur_combos)
-    return sorted(combos, key=_combo_sort_key)
+        for row in run_rows:
+            if row.get("operator") != operator or row.get("variant") != variant:
+                continue
+            combo = str(row.get("combo_bits", ""))
+            option_index = _safe_int(row.get("option_index"), -1)
+            if option_index >= 0:
+                prev_idx = order_map.get(combo)
+                if prev_idx is None or option_index < prev_idx:
+                    order_map[combo] = option_index
+    return sorted(
+        combos,
+        key=lambda combo: (
+            0 if combo in order_map else 1,
+            order_map.get(combo, 10**9),
+            _combo_sort_key(combo),
+        ),
+    )
 
 
 def _aligned_series(
@@ -841,11 +880,10 @@ def _plot_paper_like_series(
 
     ax.set_title(title)
     ax.set_ylabel("Time [ns / (element * qp)]")
+    ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=_combo_fontsize(combos))
+    ax.tick_params(axis="x", length=0, pad=3)
     if show_xlabel:
-        ax.set_xlabel("Options")
-        ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=5)
-    else:
-        ax.set_xticks([])
+        ax.set_xlabel(FILIP_OPTION_LABEL)
     ax.grid(True, axis="y", alpha=0.28)
     ax.set_xlim(-0.5, len(combos) - 0.5)
     _apply_robust_ylim(ax, all_vals)
@@ -905,13 +943,14 @@ def _plot_variant_series(
         color="#991b1b",
     )
 
-    tick_idx, tick_labels = _combo_ticks(combos)
-    ax.set_xticks(tick_idx, tick_labels, rotation=35, ha="right")
+    ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=_combo_fontsize(combos))
+    ax.tick_params(axis="x", length=0, pad=3)
     ax.set_title(f"{_variant_title(variant)} option sweep: {_operator_title(operator)}")
     ax.set_ylabel("ns / (element * qp)")
     if show_xlabel:
-        ax.set_xlabel("Option combination bits (Filip order)")
+        ax.set_xlabel(FILIP_OPTION_LABEL)
     ax.grid(True, alpha=0.25)
+    ax.set_xlim(-0.5, len(combos) - 0.5)
     _apply_robust_ylim(ax, ys)
     return True
 
@@ -926,7 +965,7 @@ def _plot_variant_option_times(rows: list[dict[str, Any]], operators: list[str],
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(13, 3.8 * len(payloads)), squeeze=False)
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(20, 5.6 * len(payloads) + 1.2), squeeze=False)
     plotted = False
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
         operator, combos, ys = payload
@@ -936,10 +975,10 @@ def _plot_variant_option_times(rows: list[dict[str, Any]], operators: list[str],
             ys=ys,
             variant=variant,
             operator=operator,
-            show_xlabel=idx == len(payloads) - 1,
+            show_xlabel=True,
         ) or plotted
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
+    fig.subplots_adjust(left=0.055, right=0.995, top=0.96, bottom=0.07, hspace=0.52)
+    fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return plotted
 
@@ -960,7 +999,7 @@ def _plot_paper_variant_option_times(
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(14, 3.8 * len(payloads) + 1.8), squeeze=False, sharex=False)
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(22, 5.8 * len(payloads) + 1.8), squeeze=False, sharex=False)
     handles: list[Any] = []
     labels: list[str] = []
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
@@ -970,7 +1009,7 @@ def _plot_paper_variant_option_times(
             combos=combos,
             series_payload=aligned,
             title=f"Automatic tuning results: {_operator_title(operator)} | {_variant_title(variant)}",
-            show_xlabel=idx == len(payloads) - 1,
+            show_xlabel=True,
         )
         if ok and not handles:
             handles, labels = ax.get_legend_handles_labels()
@@ -978,8 +1017,8 @@ def _plot_paper_variant_option_times(
                 ax.legend_.remove()
     if handles:
         fig.legend(handles, labels, loc="upper center", ncol=max(1, min(4, len(labels))), frameon=False, bbox_to_anchor=(0.5, 0.995))
-    fig.subplots_adjust(top=0.92, bottom=0.22 if len(payloads) == 1 else 0.16, hspace=0.35)
-    fig.savefig(out_path, dpi=180)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.95, bottom=0.06, hspace=0.56)
+    fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
 
@@ -996,7 +1035,7 @@ def _plot_paper_option_times_overview(current_run: dict[str, Any], operators: li
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(14, 3.2 * len(payloads) + 2.2), squeeze=False, sharex=False)
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(22, 4.9 * len(payloads) + 2.4), squeeze=False, sharex=False)
     handles: list[Any] = []
     labels: list[str] = []
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
@@ -1006,7 +1045,7 @@ def _plot_paper_option_times_overview(current_run: dict[str, Any], operators: li
             combos=combos,
             series_payload=aligned,
             title=f"{_variant_title(variant)} | {_operator_title(operator)}",
-            show_xlabel=idx == len(payloads) - 1,
+            show_xlabel=True,
         )
         if ok and not handles:
             handles, labels = ax.get_legend_handles_labels()
@@ -1014,8 +1053,8 @@ def _plot_paper_option_times_overview(current_run: dict[str, Any], operators: li
                 ax.legend_.remove()
     if handles:
         fig.legend(handles, labels, loc="upper center", ncol=max(1, min(4, len(labels))), frameon=False, bbox_to_anchor=(0.5, 0.995))
-    fig.subplots_adjust(top=0.95, bottom=0.18, hspace=0.42)
-    fig.savefig(out_path, dpi=180)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.97, bottom=0.04, hspace=0.58)
+    fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
 
@@ -1035,7 +1074,7 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
     fig, axes = plt.subplots(
         len(operators),
         len(VARIANT_ORDER),
-        figsize=(5.2 * len(VARIANT_ORDER), 3.8 * len(operators)),
+        figsize=(7.0 * len(VARIANT_ORDER), 5.8 * len(operators)),
         squeeze=False,
     )
     for row_idx, operator in enumerate(operators):
@@ -1048,7 +1087,7 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
                 ys=ys,
                 variant=variant,
                 operator=operator,
-                show_xlabel=row_idx == len(operators) - 1,
+                show_xlabel=True,
             )
             if ok and row_idx == 0:
                 ax.text(
@@ -1062,8 +1101,8 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
                     fontweight="bold",
                     color="#0f172a",
                 )
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
+    fig.subplots_adjust(left=0.045, right=0.995, top=0.93, bottom=0.07, hspace=0.62, wspace=0.18)
+    fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
 

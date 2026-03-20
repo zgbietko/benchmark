@@ -1877,11 +1877,10 @@ class AutotuneGui(tk.Tk):
             messagebox.showerror("Image load failed", str(e))
             return
         self.figure.clear()
-        ax = self.figure.add_subplot(1, 1, 1)
-        ax.imshow(img)
+        ax = self.figure.add_axes([0.01, 0.04, 0.98, 0.90])
+        ax.imshow(img, aspect="auto")
         ax.set_axis_off()
         ax.set_title(path.name)
-        self.figure.tight_layout()
         self.canvas.draw_idle()
         self.status_var.set(f"Loaded plot image: {path.name}")
 
