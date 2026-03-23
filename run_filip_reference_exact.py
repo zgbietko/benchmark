@@ -219,6 +219,30 @@ def _load_option_rows(path: Path) -> list[list[int]]:
     return rows
 
 
+def _require_workspace_files(src: Path, case_name: str) -> None:
+    required = [
+        "options.txt",
+        "input_interactive.txt",
+        "problem_conv_diff.dat",
+    ]
+    missing = [name for name in required if not (src / name).exists()]
+    if missing:
+        joined = ", ".join(missing)
+        raise SystemExit(
+            "\n".join(
+                [
+                    f"Incomplete exact workspace for {case_name}: {src}",
+                    f"Missing required files: {joined}",
+                    "This usually means the Git bundle 'legacy/filip_exact_bundle/mod_2022' was committed in an incomplete state.",
+                    "Regenerate it on the source machine with:",
+                    "  ./scripts/export_filip_exact_bundle.sh",
+                    "then commit and push the whole bundle again with:",
+                    "  git add -A legacy/filip_exact_bundle",
+                ]
+            )
+        )
+
+
 def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, input_override: Path | None, limit_option_rows: int) -> tuple[Path, list[list[int]]]:
     src = mod_dir / case.work_subdir
     if not src.exists():
@@ -234,6 +258,7 @@ def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, i
                 ]
             )
         )
+    _require_workspace_files(src, case.case_name)
     dst = out_dir / "exact_work" / case.case_name
     if dst.exists():
         shutil.rmtree(dst)
