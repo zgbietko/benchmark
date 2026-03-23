@@ -1349,9 +1349,9 @@ class AutotuneGui(tk.Tk):
         if requested in ("cpu", "cuda", "hip", "opencl", "metal"):
             return [requested]
         if requested == "intel":
-            return ["opencl"]
+            return ["intel"]
         if requested == "amd":
-            return ["hip", "opencl"]
+            return ["amd", "hip", "opencl"]
 
         if workflow_id in ("cpu_benchmark", "cpu_real_kernels"):
             return ["cpu"]
@@ -1361,11 +1361,11 @@ class AutotuneGui(tk.Tk):
             if platform_profile == "nvidia":
                 return ["cuda", "opencl"]
             if platform_profile == "amd":
-                return ["hip", "opencl"]
+                return ["amd", "hip", "opencl"]
             if platform_profile in ("intel_arc", "intel_igpu"):
-                return ["opencl"]
-            return ["cuda", "hip", "opencl", "metal"]
-        return ["cpu", "cuda", "hip", "opencl", "metal"]
+                return ["intel"]
+            return ["cuda", "hip", "opencl", "intel", "amd", "metal"]
+        return ["cpu", "cuda", "hip", "opencl", "intel", "amd", "metal"]
 
     def _refresh_workflow_devices(self) -> None:
         backends = self._workflow_discovery_backends()

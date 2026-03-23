@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
 from device_catalog import discover_backends
 
 
-DEFAULT_BACKENDS = ["cpu", "cuda", "hip", "opencl", "metal"]
+DEFAULT_BACKENDS = ["cpu", "cuda", "hip", "opencl", "intel", "amd", "metal"]
 
 
 def _parse_backends(raw: str) -> list[str]:
@@ -35,7 +35,7 @@ def _parse_backends(raw: str) -> list[str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="List available devices across benchmark backends.")
-    ap.add_argument("--backends", default="auto", help="auto|all or CSV from: cpu,cuda,hip,opencl,metal")
+    ap.add_argument("--backends", default="auto", help="auto|all or CSV from: cpu,cuda,hip,opencl,intel,amd,metal")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 

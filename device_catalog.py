@@ -133,6 +133,59 @@ def _opencl_devices() -> list[DeviceDescriptor]:
     return out
 
 
+def _normalize_vendor_key(value: str) -> str:
+    txt = str(value or "").strip().lower()
+    if txt in ("intel", "intel_gpu", "intel_igpu", "intel_arc"):
+        return "intel"
+    if txt in ("amd", "rocm", "ati"):
+        return "amd"
+    if txt in ("nvidia", "cuda", "geforce"):
+        return "nvidia"
+    return txt
+
+
+def _matches_vendor(item: DeviceDescriptor, vendor_key: str) -> bool:
+    key = _normalize_vendor_key(vendor_key)
+    hay = " ".join(
+        [
+            str(item.vendor or ""),
+            str(item.platform_name or ""),
+            str(item.device_name or ""),
+            str((item.details or {}).get("platform_vendor", "") or ""),
+        ]
+    ).lower()
+    if key == "intel":
+        return "intel" in hay
+    if key == "amd":
+        return "amd" in hay or "advanced micro devices" in hay or "radeon" in hay
+    if key == "nvidia":
+        return "nvidia" in hay or "geforce" in hay or "quadro" in hay or "tesla" in hay
+    return key in hay
+
+
+def _opencl_vendor_devices(alias_backend: str, vendor_key: str) -> list[DeviceDescriptor]:
+    out: list[DeviceDescriptor] = []
+    for item in _opencl_devices():
+        if not _matches_vendor(item, vendor_key):
+            continue
+        out.append(
+            DeviceDescriptor(
+                backend=alias_backend,
+                device_index=int(item.device_index),
+                device_name=item.device_name,
+                label=(
+                    f"{alias_backend} | dev{int(item.device_index)} | {item.device_name} | "
+                    f"{item.vendor or 'unknown vendor'} | {item.platform_name}"
+                ),
+                vendor=item.vendor,
+                platform_name=item.platform_name,
+                device_type=item.device_type,
+                details=dict(item.details or {}),
+            )
+        )
+    return out
+
+
 def _metal_devices() -> list[DeviceDescriptor]:
     from gpu.metal.metal_backend import MetalBackend
 
@@ -163,6 +216,10 @@ def list_devices_for_backend(backend: str) -> list[DeviceDescriptor]:
         return _hip_devices()
     if b == "opencl":
         return _opencl_devices()
+    if b == "intel":
+        return _opencl_vendor_devices("intel", "intel")
+    if b == "amd":
+        return _opencl_vendor_devices("amd", "amd")
     if b == "metal":
         return _metal_devices()
     raise ValueError(f"Unsupported backend for discovery: {backend}")
