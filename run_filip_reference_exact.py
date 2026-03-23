@@ -243,6 +243,48 @@ def _require_workspace_files(src: Path, case_name: str) -> None:
         )
 
 
+def _require_exact_toolchain(arch: str, mod_dir: Path) -> None:
+    arch_file = mod_dir / "src" / "platform_files" / f"make.{arch}"
+    _require_path(arch_file, f"platform file make.{arch}")
+
+    text = _read_text(arch_file)
+    problems: list[str] = []
+
+    if re.search(r"^\s*(CC|CPPC|LD|LDPP)\s*=\s*icx\s*$", text, flags=re.MULTILINE):
+        if not shutil.which("icx"):
+            problems.append("missing compiler 'icx' in PATH")
+
+    required_paths = [
+        "/opt/intel/oneapi/mkl/latest/include",
+        "/opt/intel/oneapi/mkl/latest/lib/intel64",
+        "/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin",
+    ]
+    for candidate in required_paths:
+        if candidate in text and not Path(candidate).exists():
+            problems.append(f"missing oneAPI path: {candidate}")
+
+    if "-lOpenCL" in text and not Path("/usr/lib/x86_64-linux-gnu/libOpenCL.so").exists():
+        alt = [Path("/usr/lib64/libOpenCL.so"), Path("/usr/lib/libOpenCL.so")]
+        if not any(path.exists() for path in alt):
+            problems.append("missing OpenCL loader library (libOpenCL.so)")
+
+    if problems:
+        detail = "\n".join(f"  - {item}" for item in problems)
+        raise SystemExit(
+            "\n".join(
+                [
+                    f"Exact Filip toolchain preflight failed for arch '{arch}'.",
+                    f"Platform file: {arch_file}",
+                    detail,
+                    "",
+                    "This exact mode uses Filip's original oneAPI-based build profile.",
+                    "Install Intel oneAPI Base Toolkit so that 'icx' and MKL paths exist,",
+                    "or provide a compatible custom make.<arch> profile and pass --arch-laplace/--arch-test.",
+                ]
+            )
+        )
+
+
 def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, input_override: Path | None, limit_option_rows: int) -> tuple[Path, list[list[int]]]:
     src = mod_dir / case.work_subdir
     if not src.exists():
@@ -287,6 +329,7 @@ def _build_case(*, mod_dir: Path, arch: str, rebuild: bool, log_dir: Path) -> Pa
     csh_shell = _detect_csh_shell()
     if not rebuild:
         return _require_path(binary, f"existing OpenCL binary for arch {arch}")
+    _require_exact_toolchain(arch, mod_dir)
     cmds: list[list[str]] = []
     if rebuild:
         cmds.extend(

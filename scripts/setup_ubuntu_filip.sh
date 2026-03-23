@@ -200,3 +200,7 @@ echo "[INFO] Full validation:"
 echo "       python scripts/run_ubuntu_filip_validation.py --profile paper"
 echo "[INFO] Exact Filip reference (requires original mod_2022 OpenCL toolchain):"
 echo "       python run_workflow.py --workflow filip_original --backend intel --filip-mode exact_reference --filip-case prism_pair"
+if ! command -v icx >/dev/null 2>&1; then
+  echo "[WARN] Exact Filip reference still needs Intel oneAPI compiler toolchain."
+  echo "       'icx' is not available in PATH, so exact_reference build will fail until oneAPI is installed."
+fi
