@@ -1055,7 +1055,7 @@ class AutotuneGui(tk.Tk):
         ttk.Button(frm_top, text="Firefly Convergence", command=self._plot_firefly_convergence).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Firefly Scatter", command=self._plot_firefly_scatter).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Matrix Comparison", command=self._plot_matrix_comparison).pack(side="left", padx=2)
-        ttk.Button(frm_top, text="Legacy XLSX Compare", command=self._run_legacy_xlsx_compare).pack(side="left", padx=2)
+        ttk.Button(frm_top, text="Legacy Compare", command=self._run_legacy_xlsx_compare).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Save Figure", command=self._save_current_figure).pack(side="left", padx=12)
 
         self.plot_host = ttk.Frame(self.tab_plots)
@@ -1946,7 +1946,9 @@ class AutotuneGui(tk.Tk):
         if not base.exists():
             return None
         preferred = [
+            "legacy_vs_current_internal_ns_per_elem.png",
             "legacy_vs_current_ns_per_unit.png",
+            "legacy_reference_internal_ns_per_elem.png",
             "legacy_vs_current_kernel_ms.png",
             "legacy_reference_ns_per_unit.png",
             "legacy_reference_kernel_ms.png",
@@ -2004,10 +2006,23 @@ class AutotuneGui(tk.Tk):
             messagebox.showwarning("No optimization run", "Load or run a Filip benchmark first, then compare it against legacy XLSX.")
             return
 
+        summary = {}
+        try:
+            summary = _read_json(optimization_dir / "summary.json")
+        except Exception:
+            summary = {}
+        benchmark_case = str(summary.get("benchmark_case", "")).strip().lower()
+        preferred_dir = Path.home() / "Downloads"
+        filip_ref_dir = ROOT / "Kod Filipa" / "mod_2022" / "work"
+        if benchmark_case == "laplace_prism" and (filip_ref_dir / "diff_in_box").exists():
+            preferred_dir = filip_ref_dir / "diff_in_box"
+        elif benchmark_case == "test_prism" and (filip_ref_dir / "test_scalar").exists():
+            preferred_dir = filip_ref_dir / "test_scalar"
+
         paths = filedialog.askopenfilenames(
-            title="Select legacy Filip XLSX files",
-            initialdir=str(Path.home() / "Downloads"),
-            filetypes=[("Excel", "*.xlsx"), ("All files", "*.*")],
+            title="Select legacy Filip reference files",
+            initialdir=str(preferred_dir),
+            filetypes=[("Reference files", "*.xlsx *.csv"), ("Excel", "*.xlsx"), ("CSV", "*.csv"), ("All files", "*.*")],
         )
         if not paths:
             return
@@ -2015,7 +2030,8 @@ class AutotuneGui(tk.Tk):
         operator = self._default_legacy_compare_operator()
         args: List[str] = []
         for path in paths:
-            args.extend(["--xlsx", path])
+            suffix = Path(path).suffix.lower()
+            args.extend(["--csv" if suffix == ".csv" else "--xlsx", path])
         args.extend(
             [
                 "--optimization-dir",
@@ -2024,6 +2040,8 @@ class AutotuneGui(tk.Tk):
                 operator,
             ]
         )
+        if benchmark_case in {"laplace_prism", "test_prism", "prism_pair"}:
+            args.append("--strict-fig4")
         self.script_var.set("analysis/compare_legacy_filip_xlsx.py")
         self.args_text.delete("1.0", "end")
         self.args_text.insert("1.0", " ".join(shlex.quote(x) for x in args))

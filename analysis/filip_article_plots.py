@@ -40,7 +40,7 @@ OPTION_FIELDS = [
     "use_workspace_for_stiff_mat",
     "padding",
 ]
-FILIP_OPTION_LABEL = "Options (9 bits, Filip order)"
+FILIP_OPTION_LABEL = "Options"
 VARIANT_ORDER = ["qss", "sqs", "ssq"]
 PREFERRED_PLOT_ORDER = [
     "article_paper_option_times.png",
@@ -830,6 +830,46 @@ def _paper_line_styles(n: int) -> list[dict[str, Any]]:
     return styles
 
 
+def _article_axis_style(ax: Any) -> None:
+    ax.set_facecolor("#ffffff")
+    ax.grid(True, axis="y", color="#d4d4d4", linewidth=0.5, alpha=0.9)
+    ax.grid(True, axis="x", color="#ececec", linewidth=0.35, alpha=0.8)
+    for spine in ax.spines.values():
+        spine.set_color("#8f8f8f")
+        spine.set_linewidth(0.8)
+    ax.tick_params(axis="y", labelsize=8, colors="#222222")
+    ax.tick_params(axis="x", length=0, pad=3, colors="#333333")
+
+
+def _set_combo_ticklabels(ax: Any, combos: list[str]) -> None:
+    xs = list(range(len(combos)))
+    ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=_combo_fontsize(combos))
+    for lbl in ax.get_xticklabels():
+        lbl.set_fontfamily("monospace")
+        lbl.set_color("#333333")
+
+
+def _article_ylim(values: Iterable[float]) -> tuple[float, float] | None:
+    finite_vals = sorted(float(v) for v in values if math.isfinite(float(v)))
+    if not finite_vals:
+        return None
+    lo = finite_vals[0]
+    hi = finite_vals[-1]
+    if len(finite_vals) >= 8:
+        robust_hi = float(np.percentile(np.array(finite_vals, dtype=float), 98.0))
+        if hi > robust_hi * 1.35:
+            hi = robust_hi
+    span = max(hi - lo, max(abs(lo), abs(hi), 1.0) * 0.08, 1e-6)
+    pad = span * 0.08
+    lower = lo - pad
+    upper = hi + pad
+    if lo >= 0.0:
+        lower = max(0.0, lower)
+    if lower >= upper:
+        upper = lower + 1.0
+    return lower, upper
+
+
 def _combo_union_for_series(series_runs: list[dict[str, Any]], operator: str, variant: str) -> list[str]:
     combos: set[str] = set()
     order_map: dict[str, int] = {}
@@ -880,6 +920,7 @@ def _plot_paper_like_series(
     series_payload: list[tuple[str, list[float]]],
     title: str,
     show_xlabel: bool,
+    ylim: tuple[float, float] | None = None,
 ) -> bool:
     if not combos or not series_payload:
         ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center", fontsize=10)
@@ -895,15 +936,16 @@ def _plot_paper_like_series(
         ax.plot(xs, cleaned, label=label, **style)
         all_vals.extend(float(y) for y in ys if math.isfinite(float(y)))
 
-    ax.set_title(title)
-    ax.set_ylabel("Time [ns / (element * qp)]")
-    ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=_combo_fontsize(combos))
-    ax.tick_params(axis="x", length=0, pad=3)
+    _article_axis_style(ax)
+    ax.set_title(title, fontsize=10, pad=3)
+    ax.set_ylabel("Time [ns / (element * qp)]", fontsize=9)
+    _set_combo_ticklabels(ax, combos)
     if show_xlabel:
-        ax.set_xlabel(FILIP_OPTION_LABEL)
-    ax.grid(True, axis="y", alpha=0.28)
+        ax.set_xlabel(FILIP_OPTION_LABEL, fontsize=9, labelpad=10)
     ax.set_xlim(-0.5, len(combos) - 0.5)
-    _apply_robust_ylim(ax, all_vals)
+    y_bounds = ylim or _article_ylim(all_vals)
+    if y_bounds is not None:
+        ax.set_ylim(*y_bounds)
     return True
 
 
@@ -937,6 +979,7 @@ def _plot_variant_series(
     variant: str,
     operator: str,
     show_xlabel: bool,
+    ylim: tuple[float, float] | None = None,
 ) -> bool:
     if not combos or not ys:
         ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center", va="center", fontsize=10)
@@ -944,31 +987,18 @@ def _plot_variant_series(
         return False
 
     xs = list(range(len(combos)))
-    color_map = {"qss": "#1d4ed8", "sqs": "#0f766e", "ssq": "#b45309"}
-    color = color_map.get(variant, "#334155")
-    ax.plot(xs, ys, linewidth=1.15, color=color, alpha=0.95)
-    ax.scatter(xs, ys, s=16, color=color, alpha=0.9, zorder=3)
+    ax.plot(xs, ys, linewidth=1.35, color="#2b2b2b", alpha=0.97)
 
-    best_idx = min(range(len(ys)), key=lambda idx: ys[idx])
-    ax.scatter([best_idx], [ys[best_idx]], s=44, color="#dc2626", zorder=4)
-    ax.annotate(
-        f"best: {combos[best_idx]} ({ys[best_idx]:.2f} ns)",
-        xy=(best_idx, ys[best_idx]),
-        xytext=(8, -10),
-        textcoords="offset points",
-        fontsize=8,
-        color="#991b1b",
-    )
-
-    ax.set_xticks(xs, [_stacked_combo_label(combo) for combo in combos], fontsize=_combo_fontsize(combos))
-    ax.tick_params(axis="x", length=0, pad=3)
-    ax.set_title(f"{_variant_title(variant)} option sweep: {_operator_title(operator)}")
-    ax.set_ylabel("ns / (element * qp)")
+    _article_axis_style(ax)
+    _set_combo_ticklabels(ax, combos)
+    ax.set_title(f"{_variant_title(variant)} | {_operator_title(operator)}", fontsize=10, pad=3)
+    ax.set_ylabel("Time [ns / (element * qp)]", fontsize=9)
     if show_xlabel:
-        ax.set_xlabel(FILIP_OPTION_LABEL)
-    ax.grid(True, alpha=0.25)
+        ax.set_xlabel(FILIP_OPTION_LABEL, fontsize=9, labelpad=10)
     ax.set_xlim(-0.5, len(combos) - 0.5)
-    _apply_robust_ylim(ax, ys)
+    y_bounds = ylim or _article_ylim(ys)
+    if y_bounds is not None:
+        ax.set_ylim(*y_bounds)
     return True
 
 
@@ -982,7 +1012,8 @@ def _plot_variant_option_times(rows: list[dict[str, Any]], operators: list[str],
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(20, 5.6 * len(payloads) + 1.2), squeeze=False)
+    shared_ylim = _article_ylim([val for _, _, ys in payloads for val in ys])
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(24, 4.9 * len(payloads) + 1.0), squeeze=False, sharex=False)
     plotted = False
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
         operator, combos, ys = payload
@@ -993,8 +1024,9 @@ def _plot_variant_option_times(rows: list[dict[str, Any]], operators: list[str],
             variant=variant,
             operator=operator,
             show_xlabel=True,
+            ylim=shared_ylim,
         ) or plotted
-    fig.subplots_adjust(left=0.055, right=0.995, top=0.96, bottom=0.07, hspace=0.52)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.96, bottom=0.06, hspace=0.44)
     fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return plotted
@@ -1016,7 +1048,10 @@ def _plot_paper_variant_option_times(
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(22, 5.8 * len(payloads) + 1.8), squeeze=False, sharex=False)
+    shared_ylim = _article_ylim(
+        [val for _, _, aligned in payloads for _, ys in aligned for val in ys]
+    )
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(24, 4.9 * len(payloads) + 1.1), squeeze=False, sharex=False)
     handles: list[Any] = []
     labels: list[str] = []
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
@@ -1025,16 +1060,17 @@ def _plot_paper_variant_option_times(
             ax,
             combos=combos,
             series_payload=aligned,
-            title=f"Automatic tuning results: {_operator_title(operator)} | {_variant_title(variant)}",
+            title=f"{_variant_title(variant)} | {_operator_title(operator)}",
             show_xlabel=True,
+            ylim=shared_ylim,
         )
         if ok and not handles:
             handles, labels = ax.get_legend_handles_labels()
             if ax.legend_ is not None:
                 ax.legend_.remove()
-    if handles:
+    if handles and len(labels) > 1:
         fig.legend(handles, labels, loc="upper center", ncol=max(1, min(4, len(labels))), frameon=False, bbox_to_anchor=(0.5, 0.995))
-    fig.subplots_adjust(left=0.05, right=0.995, top=0.95, bottom=0.06, hspace=0.56)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.95, bottom=0.06, hspace=0.44)
     fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
@@ -1052,7 +1088,10 @@ def _plot_paper_option_times_overview(current_run: dict[str, Any], operators: li
     if not payloads:
         return False
 
-    fig, axes = plt.subplots(len(payloads), 1, figsize=(22, 4.9 * len(payloads) + 2.4), squeeze=False, sharex=False)
+    shared_ylim = _article_ylim(
+        [val for _, _, _, aligned in payloads for _, ys in aligned for val in ys]
+    )
+    fig, axes = plt.subplots(len(payloads), 1, figsize=(24, 4.5 * len(payloads) + 1.4), squeeze=False, sharex=False)
     handles: list[Any] = []
     labels: list[str] = []
     for idx, (ax, payload) in enumerate(zip(axes[:, 0], payloads)):
@@ -1063,14 +1102,15 @@ def _plot_paper_option_times_overview(current_run: dict[str, Any], operators: li
             series_payload=aligned,
             title=f"{_variant_title(variant)} | {_operator_title(operator)}",
             show_xlabel=True,
+            ylim=shared_ylim,
         )
         if ok and not handles:
             handles, labels = ax.get_legend_handles_labels()
             if ax.legend_ is not None:
                 ax.legend_.remove()
-    if handles:
+    if handles and len(labels) > 1:
         fig.legend(handles, labels, loc="upper center", ncol=max(1, min(4, len(labels))), frameon=False, bbox_to_anchor=(0.5, 0.995))
-    fig.subplots_adjust(left=0.05, right=0.995, top=0.97, bottom=0.04, hspace=0.58)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.97, bottom=0.04, hspace=0.42)
     fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
@@ -1088,10 +1128,11 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
     if not plotted:
         return False
 
+    shared_ylim = _article_ylim([val for _, ys in payloads.values() for val in ys])
     fig, axes = plt.subplots(
         len(operators),
         len(VARIANT_ORDER),
-        figsize=(7.0 * len(VARIANT_ORDER), 5.8 * len(operators)),
+        figsize=(8.0 * len(VARIANT_ORDER), 4.9 * len(operators)),
         squeeze=False,
     )
     for row_idx, operator in enumerate(operators):
@@ -1105,6 +1146,7 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
                 variant=variant,
                 operator=operator,
                 show_xlabel=True,
+                ylim=shared_ylim,
             )
             if ok and row_idx == 0:
                 ax.text(
@@ -1118,7 +1160,7 @@ def _plot_variant_option_times_grid(rows: list[dict[str, Any]], operators: list[
                     fontweight="bold",
                     color="#0f172a",
                 )
-    fig.subplots_adjust(left=0.045, right=0.995, top=0.93, bottom=0.07, hspace=0.62, wspace=0.18)
+    fig.subplots_adjust(left=0.045, right=0.995, top=0.93, bottom=0.06, hspace=0.44, wspace=0.14)
     fig.savefig(out_path, dpi=220)
     plt.close(fig)
     return True
