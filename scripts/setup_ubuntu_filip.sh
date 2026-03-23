@@ -132,12 +132,14 @@ if [[ ${WITH_APT} -eq 1 ]]; then
     libboost-filesystem-dev
     libboost-regex-dev
     libconfig-dev
+    tcsh
   )
   if [[ ${INSTALL_GUI} -eq 1 ]]; then
     BASE_PKGS+=(python3-tk)
   fi
   run_root apt-get install -y "${BASE_PKGS[@]}"
   apt_install_if_available intel-opencl-icd intel-level-zero-gpu libze1 level-zero
+  apt_install_if_available csh
 fi
 
 echo "[INFO] Creating virtualenv: ${VENV_DIR}"

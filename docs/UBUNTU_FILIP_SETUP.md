@@ -36,6 +36,7 @@ Na Ubuntu musisz mieć:
 Skrypt setupu instaluje:
 
 - pakiety systemowe potrzebne do Pythona, `tkinter`, `clinfo` i nagłówków OpenCL
+- `tcsh` dla oryginalnego `Makefile_explicit` Filipa
 - virtualenv
 - `numpy`
 - `matplotlib`
@@ -216,6 +217,7 @@ Wymagania dodatkowe:
 
 - działający OpenCL Intela
 - narzędzia kompilacyjne zgodne z plikami `make.arc_laplace` i `make.arc_test`
+- `csh/tcsh`, bo oryginalny `Makefile_explicit` używa `SHELL = /bin/csh`
 - w praktyce: `icx` + Intel oneAPI MKL/OpenMP albo ręcznie dostosowany plik `make.*`
 
 Uruchomienie:

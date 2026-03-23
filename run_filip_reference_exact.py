@@ -183,6 +183,30 @@ def _detect_device_label(preferred_vendor: str = "intel") -> str:
     return device_names[0]
 
 
+def _detect_csh_shell() -> str:
+    candidates = [
+        "/bin/csh",
+        shutil.which("csh") or "",
+        "/bin/tcsh",
+        shutil.which("tcsh") or "",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    raise SystemExit(
+        "\n".join(
+            [
+                "Exact Filip reference build requires a csh-compatible shell.",
+                "The original Makefile_explicit uses 'SHELL = /bin/csh'.",
+                "Install one of these on Ubuntu before running exact_reference:",
+                "  sudo apt-get install -y tcsh",
+                "or",
+                "  sudo apt-get install -y csh",
+            ]
+        )
+    )
+
+
 def _load_option_rows(path: Path) -> list[list[int]]:
     rows: list[list[int]] = []
     for line in _read_text(path).splitlines():
@@ -235,20 +259,21 @@ def _build_case(*, mod_dir: Path, arch: str, rebuild: bool, log_dir: Path) -> Pa
     src_dir = mod_dir / "src"
     build_log = log_dir / f"build__{arch}.log"
     binary = mod_dir / "bin" / arch / "MFEM_conv_diff_prism_std_krb_ocl"
+    csh_shell = _detect_csh_shell()
     if not rebuild:
         return _require_path(binary, f"existing OpenCL binary for arch {arch}")
     cmds: list[list[str]] = []
     if rebuild:
         cmds.extend(
             [
-                ["make", "-f", "Makefile_explicit", "deep_clean"],
-                ["make", "-f", "Makefile_explicit", "clean"],
+                ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "deep_clean"],
+                ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "clean"],
             ]
         )
     cmds.extend(
         [
-            ["make", "-f", "Makefile_explicit"],
-            ["make", "-f", "Makefile_explicit", "conv_diff_prism_std_krb_ocl"],
+            ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit"],
+            ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "conv_diff_prism_std_krb_ocl"],
         ]
     )
     with build_log.open("w", encoding="utf-8") as log:
