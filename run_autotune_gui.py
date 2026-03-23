@@ -55,6 +55,7 @@ SCRIPT_CHOICES: List[str] = [
     "real_kernels/run_all_real_kernels.py",
     "run_firefly_optimization.py",
     "run_filip_original.py",
+    "run_filip_reference_exact.py",
     "run_filip_autotuning.py",
     "run_fem_parametric_preflight.py",
     "run_device_discovery.py",
@@ -77,6 +78,11 @@ FILIP_CASE_DESCRIPTIONS: Dict[str, str] = {
     "laplace_prism": "Strict Filip laplace_prism case on prism6 with 6 quadrature points.",
     "test_prism": "Strict Filip test_prism case on prism6 with 6 quadrature points.",
     "portable": "Portable fallback used earlier: tet4 with diffusion and diffusion_convection_mass.",
+}
+FILIP_MODE_CHOICES: List[str] = ["portable_sweep", "exact_reference"]
+FILIP_MODE_DESCRIPTIONS: Dict[str, str] = {
+    "portable_sweep": "Current project benchmark path. Exhaustive constrained sweep on the portable FEM harness.",
+    "exact_reference": "Original Filip OpenCL path. Builds mod_2022 and runs the native 80-option reference campaign with native 'internal' timings.",
 }
 
 OPTIMIZATION_PLOT_PREFERENCE: List[str] = [
@@ -108,7 +114,7 @@ WORKFLOWS: Dict[str, Dict[str, str]] = {
     },
     "5. Filip original": {
         "id": "filip_original",
-        "description": "Strict Filip-style exhaustive FEM benchmark. Fixed thesis-like cases, full constrained option sweep, article plots, no firefly.",
+        "description": "Filip benchmark workflow. Choose either the portable sweep or the exact original OpenCL reference path.",
     },
     "6. Filip autotuning": {
         "id": "filip_autotune",
@@ -168,9 +174,20 @@ TEMPLATES: Dict[str, Dict[str, str]] = {
             "--backend metal "
             "--profile paper "
             "--repeats 3 "
+            "--filip-mode portable_sweep "
             "--benchmark-case prism_pair "
             "--variants qss,sqs,ssq "
             "--dtype float32"
+        ),
+    },
+    "[Filip] Exact reference benchmark": {
+        "script": "run_workflow.py",
+        "args": (
+            "--workflow filip_original "
+            "--profile paper "
+            "--backend intel "
+            "--filip-mode exact_reference "
+            "--filip-case prism_pair"
         ),
     },
     "[Analysis] Legacy XLSX compare": {
@@ -869,6 +886,24 @@ class AutotuneGui(tk.Tk):
             justify="left",
         ).grid(row=6, column=4, columnspan=2, sticky="we", padx=6, pady=(8, 0))
 
+        ttk.Label(top, text="Filip mode").grid(row=7, column=0, sticky="w", pady=(8, 0))
+        self.workflow_filip_mode_var = tk.StringVar(value="portable_sweep")
+        ttk.Combobox(
+            top,
+            textvariable=self.workflow_filip_mode_var,
+            values=FILIP_MODE_CHOICES,
+            state="readonly",
+            width=16,
+        ).grid(row=7, column=1, sticky="w", padx=6, pady=(8, 0))
+
+        self.workflow_filip_mode_note_var = tk.StringVar(value=FILIP_MODE_DESCRIPTIONS["portable_sweep"])
+        ttk.Label(
+            top,
+            textvariable=self.workflow_filip_mode_note_var,
+            wraplength=860,
+            justify="left",
+        ).grid(row=7, column=2, columnspan=4, sticky="we", padx=6, pady=(8, 0))
+
         top.columnconfigure(1, weight=1)
         top.columnconfigure(5, weight=1)
 
@@ -902,6 +937,7 @@ class AutotuneGui(tk.Tk):
             self.workflow_population_var,
             self.workflow_iterations_var,
             self.workflow_filip_case_var,
+            self.workflow_filip_mode_var,
         ):
             var.trace_add("write", lambda *_args: self._refresh_workflow_description())
 
@@ -1315,6 +1351,8 @@ class AutotuneGui(tk.Tk):
             self.workflow_iterations_var.get().strip() or "20",
             "--filip-case",
             self.workflow_filip_case_var.get().strip() or "prism_pair",
+            "--filip-mode",
+            self.workflow_filip_mode_var.get().strip() or "portable_sweep",
         ]
         extra = self.workflow_extra_text.get("1.0", "end").strip()
         if extra:
@@ -1327,12 +1365,15 @@ class AutotuneGui(tk.Tk):
     def _refresh_workflow_description(self) -> None:
         spec = WORKFLOWS.get(self.workflow_var.get(), {})
         filip_case = self.workflow_filip_case_var.get().strip() or "prism_pair"
+        filip_mode = self.workflow_filip_mode_var.get().strip() or "portable_sweep"
         self.workflow_filip_case_note_var.set(FILIP_CASE_DESCRIPTIONS.get(filip_case, ""))
+        self.workflow_filip_mode_note_var.set(FILIP_MODE_DESCRIPTIONS.get(filip_mode, ""))
         desc = spec.get("description", "")
         if spec.get("id") == "filip_original":
             extra = FILIP_CASE_DESCRIPTIONS.get(filip_case, "")
-            if extra:
-                desc = f"{desc} Selected case: {extra}"
+            mode_extra = FILIP_MODE_DESCRIPTIONS.get(filip_mode, "")
+            if extra or mode_extra:
+                desc = f"{desc} Selected case: {extra} Selected mode: {mode_extra}"
         self.workflow_desc_var.set(desc)
         script, args = self._workflow_command()
         self.workflow_preview_var.set(f"Command preview: python3 {script} {args}")

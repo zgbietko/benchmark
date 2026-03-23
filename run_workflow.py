@@ -405,6 +405,20 @@ def _filip_original_args(args: argparse.Namespace, backend: str) -> list[str]:
     return out
 
 
+def _filip_exact_args(args: argparse.Namespace) -> list[str]:
+    backend = str(args.backend).strip().lower()
+    if backend not in ("auto", "opencl", "intel"):
+        raise SystemExit("Filip exact reference mode supports only backend=opencl/intel/auto.")
+    return [
+        "--backend",
+        "intel" if backend in ("auto", "intel") else "opencl",
+        "--benchmark-case",
+        args.filip_case,
+        "--variants",
+        "qss,sqs,ssq",
+    ]
+
+
 def _fem_safe_args_firefly(args: argparse.Namespace, backend: str) -> list[str]:
     n_range = "20000:500000" if backend in ("cpu", "cuda") else "20000:300000"
     out = [
@@ -739,8 +753,12 @@ def run_filip_autotune(args: argparse.Namespace) -> int:
 
 def run_filip_original(args: argparse.Namespace) -> int:
     before = _optimization_dirs()
-    backend = _resolve_fem_backend_token(args.backend, args.platform_profile, args.arch)
-    run_rc = _run_py("run_filip_original.py", _filip_original_args(args, backend))
+    if str(args.filip_mode).strip().lower() == "exact_reference":
+        backend = "opencl"
+        run_rc = _run_py("run_filip_reference_exact.py", _filip_exact_args(args))
+    else:
+        backend = _resolve_fem_backend_token(args.backend, args.platform_profile, args.arch)
+        run_rc = _run_py("run_filip_original.py", _filip_original_args(args, backend))
     out_dir = _latest_new_optimization_dir(before)
     return _optimization_result(
         out_dir,
@@ -748,6 +766,7 @@ def run_filip_original(args: argparse.Namespace) -> int:
             "workflow": args.workflow,
             "resolved_backend": backend,
             "filip_case": args.filip_case,
+            "filip_mode": args.filip_mode,
             "optimizer": "exhaustive_sweep",
             "exit_code": 0 if run_rc == 0 else 1,
         },
@@ -806,6 +825,7 @@ def main() -> None:
     ap.add_argument("--iterations", type=int, default=20)
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--filip-case", choices=["portable", "laplace_prism", "test_prism", "prism_pair"], default="prism_pair")
+    ap.add_argument("--filip-mode", choices=["portable_sweep", "exact_reference"], default="portable_sweep")
     args = ap.parse_args()
 
     if args.workflow == "cpu_benchmark":

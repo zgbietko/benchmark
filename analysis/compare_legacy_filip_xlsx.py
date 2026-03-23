@@ -452,6 +452,12 @@ def _is_opencl12_reference(paths: Iterable[Path]) -> bool:
     return any(p.suffix.lower() == ".csv" for p in paths)
 
 
+def _present_variants(rows: Iterable[dict[str, Any]]) -> list[str]:
+    present = {str(row.get("variant", "")).strip().lower() for row in rows if str(row.get("variant", "")).strip()}
+    ordered = [variant for variant in VARIANT_ORDER if variant in present]
+    return ordered or list(VARIANT_ORDER)
+
+
 def _preferred_current_rows(rows: list[dict[str, Any]], operator: str) -> list[dict[str, Any]]:
     filtered = [r for r in rows if r.get("operator") == operator]
     ok = [r for r in filtered if str(r.get("status", "")) == "ok" and bool(r.get("constraints_ok"))]
@@ -606,6 +612,7 @@ def main() -> None:
         legacy_rows.extend(_read_legacy_xlsx(path, n_qp=n_qp, label=args.legacy_label))
     for path in csv_paths:
         legacy_rows.extend(_read_legacy_csv(path, n_qp=n_qp, label=args.legacy_label))
+    variants = _present_variants(legacy_rows)
 
     current_runs = [_load_optimization_run(path) for path in current_dirs]
     current_filtered = [_preferred_current_rows(run["rows"], operator=str(args.current_operator).strip().lower()) for run in current_runs]
@@ -625,8 +632,8 @@ def main() -> None:
         comparison_notes.append("Current Filip_original runs expose internal time from the benchmark phase decomposition, not from a direct native OpenCL internal timer.")
 
     # Legacy-only reference: normalized ns/(element*qp)
-    fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.6 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-    for idx, variant in enumerate(VARIANT_ORDER):
+    fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.6 * len(variants) + 1.0), squeeze=False)
+    for idx, variant in enumerate(variants):
         combos, ys = _best_by_combo(legacy_rows, variant, "kernel_ns_per_unit")
         mapping = {combo: val for combo, val in zip(combos, ys)}
         _plot_series(
@@ -643,8 +650,8 @@ def main() -> None:
     plt.close(fig)
 
     # Legacy-only reference: raw kernel ms
-    fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.6 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-    for idx, variant in enumerate(VARIANT_ORDER):
+    fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.6 * len(variants) + 1.0), squeeze=False)
+    for idx, variant in enumerate(variants):
         combos, ys = _best_by_combo(legacy_rows, variant, "kernel_ms")
         mapping = {combo: val for combo, val in zip(combos, ys)}
         _plot_series(
@@ -663,8 +670,8 @@ def main() -> None:
     strict_reference_path = out_dir / "legacy_reference_internal_ns_per_elem.png"
     strict_compare_path = out_dir / "legacy_vs_current_internal_ns_per_elem.png"
     if args.strict_fig4:
-        fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.7 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-        for idx, variant in enumerate(VARIANT_ORDER):
+        fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.7 * len(variants) + 1.0), squeeze=False)
+        for idx, variant in enumerate(variants):
             combos, ys = _best_by_combo(legacy_rows, variant, metric_key)
             mapping = {combo: val for combo, val in zip(combos, ys)}
             _plot_series(
@@ -704,8 +711,8 @@ def main() -> None:
                     f"Current run {summary.get('out_dir', '') or summary.get('backend', '')}: missing internal compute timings in run CSV."
                 )
 
-        fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.7 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-        for idx, variant in enumerate(VARIANT_ORDER):
+        fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.7 * len(variants) + 1.0), squeeze=False)
+        for idx, variant in enumerate(variants):
             combos = _union_combos([legacy_rows, *current_filtered], variant)
             legacy_combo, legacy_vals = _best_by_combo(legacy_rows, variant, "kernel_ns_per_unit")
             series = [(args.legacy_label, {c: v for c, v in zip(legacy_combo, legacy_vals)})]
@@ -729,8 +736,8 @@ def main() -> None:
         comparison_plots.append(str(cmp_norm_path))
 
         if args.strict_fig4:
-            fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.7 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-            for idx, variant in enumerate(VARIANT_ORDER):
+            fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.7 * len(variants) + 1.0), squeeze=False)
+            for idx, variant in enumerate(variants):
                 combos = _union_combos([legacy_rows, *current_filtered], variant)
                 legacy_combo, legacy_vals = _best_by_combo(legacy_rows, variant, metric_key)
                 series = [(args.legacy_label, {c: v for c, v in zip(legacy_combo, legacy_vals)})]
@@ -752,8 +759,8 @@ def main() -> None:
             plt.close(fig)
             comparison_plots.append(str(strict_compare_path))
 
-        fig, axes = plt.subplots(len(VARIANT_ORDER), 1, figsize=(24, 4.7 * len(VARIANT_ORDER) + 1.0), squeeze=False)
-        for idx, variant in enumerate(VARIANT_ORDER):
+        fig, axes = plt.subplots(len(variants), 1, figsize=(24, 4.7 * len(variants) + 1.0), squeeze=False)
+        for idx, variant in enumerate(variants):
             combos = _union_combos([legacy_rows, *current_filtered], variant)
             legacy_combo, legacy_vals = _best_by_combo(legacy_rows, variant, "kernel_ms")
             series = [(args.legacy_label, {c: v for c, v in zip(legacy_combo, legacy_vals)})]

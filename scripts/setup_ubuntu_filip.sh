@@ -128,6 +128,10 @@ if [[ ${WITH_APT} -eq 1 ]]; then
     ocl-icd-opencl-dev
     opencl-headers
     pciutils
+    libboost-system-dev
+    libboost-filesystem-dev
+    libboost-regex-dev
+    libconfig-dev
   )
   if [[ ${INSTALL_GUI} -eq 1 ]]; then
     BASE_PKGS+=(python3-tk)
@@ -192,3 +196,5 @@ echo "[INFO] Device discovery:"
 echo "       python run_device_discovery.py --backends cuda,opencl"
 echo "[INFO] Full validation:"
 echo "       python scripts/run_ubuntu_filip_validation.py --profile paper"
+echo "[INFO] Exact Filip reference (requires original mod_2022 OpenCL toolchain):"
+echo "       python run_workflow.py --workflow filip_original --backend intel --filip-mode exact_reference --filip-case prism_pair"

@@ -196,3 +196,73 @@ W zakładce `Workflows`:
 Po wyborze GUI ustawia właściwy `backend` i `device-index`.
 
 Na Linuxie GUI nie jest wymagane do walidacji `Filip_original`. Cała walidacja działa także z CLI.
+
+### 9. Exact reference mode `1:1` z kodem Filipa
+
+Jeśli chcesz sprawdzić zgodność z dawnymi plikami referencyjnymi na tym samym procesorze, użyj trybu:
+
+- `filip_mode = exact_reference`
+
+Ten tryb:
+
+- buduje oryginalny `mod_2022`
+- uruchamia natywny binarny tor OpenCL Filipa
+- używa oryginalnych `options.txt`
+- czyta natywne pole `internal` z oryginalnego CSV
+
+To jest jedyny tryb w tym repo, który jest sensownie zbliżony do testu `100%` względem dawnych referencji.
+
+Wymagania dodatkowe:
+
+- działający OpenCL Intela
+- narzędzia kompilacyjne zgodne z plikami `make.arc_laplace` i `make.arc_test`
+- w praktyce: `icx` + Intel oneAPI MKL/OpenMP albo ręcznie dostosowany plik `make.*`
+
+Uruchomienie:
+
+```bash
+python run_workflow.py \
+  --workflow filip_original \
+  --backend intel \
+  --filip-mode exact_reference \
+  --filip-case prism_pair
+```
+
+Tylko `laplace_prism`:
+
+```bash
+python run_workflow.py \
+  --workflow filip_original \
+  --backend intel \
+  --filip-mode exact_reference \
+  --filip-case laplace_prism
+```
+
+Tylko `test_prism`:
+
+```bash
+python run_workflow.py \
+  --workflow filip_original \
+  --backend intel \
+  --filip-mode exact_reference \
+  --filip-case test_prism
+```
+
+Bez przebudowy, jeśli binaria są już gotowe:
+
+```bash
+python run_filip_reference_exact.py \
+  --backend intel \
+  --benchmark-case prism_pair \
+  --skip-build
+```
+
+Wyniki exact mode trafią do `data/optimization/...__filip_original__backend-opencl__exact` i będą zawierały:
+
+- `summary.json`
+- `evaluations.jsonl`
+- `iterations.jsonl`
+- `csv/result_filip_original__opencl.csv`
+- `plots/article_paper_option_times.png`
+
+To ten katalog ładujesz potem do porównania z dawnymi `xlsx/csv`.
