@@ -1,0 +1,6 @@
+export MOD_FEM_DIR=/home/fkruzel/Kod/mod_2022/
+export MOD_FEM_ARCH=arc_laplace
+cd $MOD_FEM_DIR/src
+make -f Makefile_explicit deep_clean
+make -f Makefile_explicit clean
+cd $MOD_FEM_DIR/work/diff_in_box/

@@ -1,0 +1,21 @@
+How to manage MOD_FEM code.
+
+I. Writing a new module.
+
+1. Create a new directory with the name conforming to naming conventions.
+
+2. Place source files and internal headers files in the directory.
+
+3. Create local Makefile in the directory of your module according to rules
+	(taking any of the provided local Makefile's as an example)
+
+3. Modify the main Makefile in src directory:
+
+	a/ write a new option in initial message on how to perform make
+	b/ define a new symbol for developed library (libraries)
+	c/ create a new block for your new option 
+		- compose directories in which to perform local make's
+		- include your new libraries in the final linking 
+
+4. Modify (if necessary) platform files to include new libraries, 
+	perform new optimizations, etc.)

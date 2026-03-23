@@ -1,0 +1,41 @@
+# for my amd with standard gcc, acml lapack, etc.:
+
+# C compiler
+CC = gcc
+
+# C++ compiler
+CPPC = g++
+
+# Loader 
+LD = g++
+
+# Archiver
+AR = ar r
+
+# Ranlib (if necessary)
+# ranlib
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/opt/acml4.4.0/gfortran64_mp/include
+
+# Standard and/or local libraries
+LIB = -L/opt/acml4.4.0/gfortran64_mp/lib -lacml_mp -lgfortran \
+  -L$(MOD_FEM_OBJ_DIR)/ -L$(MOD_FEM_DIR)/lib \
+  /usr/local/lib/libconfig.a
+
+# C optimization and other flags
+#CFL =  -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -m64 \
+    -Wimplicit -Wmissing-declarations -Wredundant-decls -DWITH_ -p -DPARALLEL
+#CFL = -O3  -funroll-loops -ffast-math -DWITH_ -m64  -p
+CFL = -O3  -funroll-loops -ffast-math -DWITH_ -m64  
+
+# Loader optimization and other flags
+#LDFL = -g -m64
+#LDFL = -O3  -funroll-loops -ffast-math -m64 -p
+LDFL = -O3  -funroll-loops -ffast-math -m64 

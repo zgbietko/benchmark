@@ -409,7 +409,7 @@ def _filip_exact_args(args: argparse.Namespace) -> list[str]:
     backend = str(args.backend).strip().lower()
     if backend not in ("auto", "opencl", "intel"):
         raise SystemExit("Filip exact reference mode supports only backend=opencl/intel/auto.")
-    return [
+    out = [
         "--backend",
         "intel" if backend in ("auto", "intel") else "opencl",
         "--benchmark-case",
@@ -417,6 +417,11 @@ def _filip_exact_args(args: argparse.Namespace) -> list[str]:
         "--variants",
         "qss,sqs,ssq",
     ]
+    if str(getattr(args, "filip_modfem_dir", "")).strip():
+        out += ["--modfem-dir", str(args.filip_modfem_dir).strip()]
+    if str(getattr(args, "filip_input_override", "")).strip():
+        out += ["--input-override", str(args.filip_input_override).strip()]
+    return out
 
 
 def _fem_safe_args_firefly(args: argparse.Namespace, backend: str) -> list[str]:
@@ -826,6 +831,8 @@ def main() -> None:
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--filip-case", choices=["portable", "laplace_prism", "test_prism", "prism_pair"], default="prism_pair")
     ap.add_argument("--filip-mode", choices=["portable_sweep", "exact_reference"], default="portable_sweep")
+    ap.add_argument("--filip-modfem-dir", default="")
+    ap.add_argument("--filip-input-override", default="")
     args = ap.parse_args()
 
     if args.workflow == "cpu_benchmark":

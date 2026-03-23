@@ -1,0 +1,46 @@
+We all own the whole code, we share responsibility, if there is an error somewhere, 
+that is the concern for all of us.
+
+When someone finds an error, he/she treats it as its own error and tries to resolve the 
+problem. We never follow the scheme: "this is your error, you must correct the code,
+I don't care". 
+
+However, every module has its owner - the module's owner is the person that knows
+the module the best of us. Every correction to the module HAS TO BE APPROVED by the 
+module's owner. BEFORE commiting any changes to repo, EVERYONE IS OBLIGED to consult
+the changes with the module's owner.
+
+The owner of the module should be willing to help anyone with bugs, modifications
+and extensions in its module. However we adopt the rule:
+
+EVERY BUG IN THE CODE IS MY BUG. EVERY SUCCESS IS THE SUCCESS OF ALL OF US.
+
+Module's ownership:
+
+apd_dg_prism - KC, KB
+apd_std_lin - FK, KB
+apd_std_quad - JB
+appd_dg_prism - KC, KB
+appd_std_lin - KC, KB
+cmake - JB, KM
+lsd_mkb - KC, KB
+mmd_prism - KB
+mmd_prism_2D - KB
+mmd_remesh - PC
+mmd_t4_prism - KM
+mmpd_prism - KC, KB 
+mmpd_adapter - KM 
+mod_fem_viewer - PM
+pcd_mpi - KM, KB
+pdd_conv_diff - KC, KB
+pdd_elast - FK, KB
+pdd_heat - AS, KB
+pdd_laplace (OBSOLETE) - KC, KB
+pdd_ns_supg - PC, KB
+pdd_ns_supg_heat - AS, KB
+sid_krylow_bliter - KC, KB
+sid_lapack - KB
+sid_mkb - KC, KB
+sid_pardiso - KC
+utd_system - ???, KB
+utd_util - KM, KB

@@ -1,0 +1,20 @@
+There are two directories - main and linear solver interface - that are
+designed to store definitions of functions specified in pdh_intf.h and
+pdh_control_intf.h (both header files in the src/include directory).
+These functions may be used by other NON-PROBLEM modules.
+
+There are several other directories that store functions local to the
+current module, such as time_integration, adaptation, input_output,
+weak_formulation. Functions defined in files in these directories 
+correspond to header files in local include directory and have names
+starting ALWAYS with pdr_module_name (e.g. pdr_heat_..., pdr_ns_supg_...,
+pdr_ns_supg_heat_...). These functions may be called by other PROBLEM 
+modules, so they can use only local types (names starting with 
+pdt_module_name_) and local global variables (names starting with 
+pdv_module_name_), as well as local constants (names starting with 
+PDC_MODULE_NAME_).
+
+Therefore, e.g. definition of procedure pdr_err_indi is in file
+pds_module_name_main, but it immediately calls the procedure
+pds_module_name_err_indi defined in pds_module_name_adapt.c in
+adaptation directory.

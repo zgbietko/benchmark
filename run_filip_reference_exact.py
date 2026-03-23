@@ -20,6 +20,9 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+DEFAULT_EXACT_BUNDLE_DIR = ROOT / "legacy" / "filip_exact_bundle" / "mod_2022"
+DEFAULT_ORIGINAL_MOD_DIR = ROOT / "Kod Filipa" / "mod_2022"
+
 _mpl_cfg = ROOT / ".cache" / "matplotlib"
 _mpl_cfg.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(_mpl_cfg))
@@ -132,6 +135,12 @@ def _make_out_dir() -> Path:
     return out
 
 
+def _default_modfem_dir() -> Path:
+    if DEFAULT_EXACT_BUNDLE_DIR.exists():
+        return DEFAULT_EXACT_BUNDLE_DIR
+    return DEFAULT_ORIGINAL_MOD_DIR
+
+
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
@@ -187,7 +196,20 @@ def _load_option_rows(path: Path) -> list[list[int]]:
 
 
 def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, input_override: Path | None, limit_option_rows: int) -> tuple[Path, list[list[int]]]:
-    src = _require_path(mod_dir / case.work_subdir, f"workspace for {case.case_name}")
+    src = mod_dir / case.work_subdir
+    if not src.exists():
+        raise SystemExit(
+            "\n".join(
+                [
+                    f"Missing workspace for {case.case_name}: {src}",
+                    "Exact Filip reference mode needs a real local copy of 'Kod Filipa/mod_2022'.",
+                    "Most likely the second machine has only the outer repo clone, without the actual mod_2022 contents.",
+                    "Fix one of these:",
+                    "  1. copy/export mod_2022 to that machine and pass --modfem-dir /path/to/mod_2022",
+                    "  2. prepare a slim bundle on the source machine with scripts/export_filip_exact_bundle.sh",
+                ]
+            )
+        )
     dst = out_dir / "exact_work" / case.case_name
     if dst.exists():
         shutil.rmtree(dst)
@@ -659,7 +681,7 @@ def main() -> None:
     ap.add_argument("--backend", choices=["opencl", "intel", "auto"], default="intel")
     ap.add_argument("--benchmark-case", choices=sorted(CASE_SPECS.keys()), default="prism_pair")
     ap.add_argument("--variants", default="qss,sqs,ssq")
-    ap.add_argument("--modfem-dir", default=str(ROOT / "Kod Filipa" / "mod_2022"))
+    ap.add_argument("--modfem-dir", default=str(_default_modfem_dir()))
     ap.add_argument("--arch-laplace", default="auto")
     ap.add_argument("--arch-test", default="auto")
     ap.add_argument("--input-override", default="", help="Optional replacement input_interactive.txt for exact runs.")

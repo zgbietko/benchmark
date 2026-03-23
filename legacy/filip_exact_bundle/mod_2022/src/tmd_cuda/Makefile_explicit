@@ -1,0 +1,16 @@
+# Makefile for CUDA multithreading initialization routines
+
+$(MOD_FEM_OBJ_DIR)/tml_cuda_lib.a: \
+	$(MOD_FEM_OBJ_DIR)/tms_cuda_intf.o 
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/tms_cuda_intf.o 
+
+
+$(MOD_FEM_OBJ_DIR)/tms_cuda_intf.o: tms_cuda_intf.c \
+	$(MOD_FEM_INC_DIR)/tmh_intf.h tmh_cuda.h
+	$(CC) $(CFL) -c tms_cuda_intf.c -o $@ $(INC) 
+
+
+clean:
+	rm -f *~ *.o *.a
+
+ 

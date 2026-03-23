@@ -1,0 +1,7 @@
+bin/
+obj/
+traces/
+work/diff_in_box/result*
+work/test_scalar/result*
+work/diff_in_box/*.log
+work/test_scalar/*.log
