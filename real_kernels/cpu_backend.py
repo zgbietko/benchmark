@@ -4,12 +4,26 @@ import time
 from dataclasses import dataclass
 from typing import Tuple
 
+from fem_catalog import bytes_per_elem_qp, flops_per_elem_qp
 import numpy as np
 
 
 @dataclass
 class CpuRealBackend:
     device_name: str = "cpu"
+
+    @staticmethod
+    def _prism_qps(n_qp: int) -> list[tuple[float, float, float, float]]:
+        if n_qp <= 1:
+            return [(1.0 / 3.0, 1.0 / 3.0, 0.0, 1.0)]
+        tri = [
+            (1.0 / 6.0, 1.0 / 6.0),
+            (2.0 / 3.0, 1.0 / 6.0),
+            (1.0 / 6.0, 2.0 / 3.0),
+        ]
+        line = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+        qps = [(r, s, z, 1.0 / 6.0) for z in line for r, s in tri]
+        return qps[: max(1, min(int(n_qp), len(qps)))]
 
     def gemm(self, m: int, n: int, k: int, dtype: str = "float32") -> Tuple[float, float]:
         dt = np.float32 if dtype == "float32" else np.float64
@@ -334,6 +348,108 @@ class CpuRealBackend:
         bytes_per_elem_qp = float((8 * 3 + 8 * 8) * np.dtype(dt).itemsize)
         flops = float(n_elements * qn) * flops_per_elem_qp
         bytes_moved = float(n_elements * qn) * bytes_per_elem_qp
+        gflops = flops / max(elapsed, 1e-12) / 1e9
+        gbps = bytes_moved / max(elapsed, 1e-12) / 1e9
+        _ = float(ke[0, 0, 0]) if n_elements > 0 else 0.0
+        return elapsed, gflops, gbps
+
+    def fem_integration_prism6(
+        self,
+        n_elements: int,
+        n_qp: int = 6,
+        operator: str = "laplace",
+        dtype: str = "float32",
+    ) -> Tuple[float, float, float]:
+        dt = np.float32 if dtype == "float32" else np.float64
+        op = operator.lower()
+        if op not in (
+            "diffusion",
+            "mass",
+            "convection",
+            "diffusion_mass",
+            "diffusion_convection_mass",
+            "laplace",
+            "test",
+        ):
+            raise ValueError(f"Unsupported operator: {operator}")
+
+        x_e = np.random.rand(n_elements, 6, 3).astype(dt)
+        ke = np.zeros((n_elements, 6, 6), dtype=dt)
+        vel = np.random.rand(n_elements, 3).astype(dt)
+        coeff = np.random.rand(n_elements, 20).astype(dt)
+        eye6 = np.eye(6, dtype=dt)[None, :, :]
+        qps = self._prism_qps(n_qp)
+
+        t0 = time.perf_counter()
+        for r, s, z, w in qps:
+            one_minus_z = dt(0.5 * (1.0 - z))
+            one_plus_z = dt(0.5 * (1.0 + z))
+            tri0 = dt(1.0 - r - s)
+            nvals = np.array(
+                [
+                    one_minus_z * tri0,
+                    one_minus_z * r,
+                    one_minus_z * s,
+                    one_plus_z * tri0,
+                    one_plus_z * r,
+                    one_plus_z * s,
+                ],
+                dtype=dt,
+            )
+            dndxi = np.array(
+                [
+                    [-one_minus_z, -one_minus_z, -0.5 * tri0],
+                    [one_minus_z, dt(0.0), -0.5 * r],
+                    [dt(0.0), one_minus_z, -0.5 * s],
+                    [-one_plus_z, -one_plus_z, 0.5 * tri0],
+                    [one_plus_z, dt(0.0), 0.5 * r],
+                    [dt(0.0), one_plus_z, 0.5 * s],
+                ],
+                dtype=dt,
+            )
+
+            grad_phys = None
+            j = np.einsum("eni,nj->eij", x_e, dndxi, optimize=True)
+            det_j = np.linalg.det(j)
+            inv_j = np.linalg.inv(j)
+            scale = (w * np.abs(det_j)).reshape(-1, 1, 1)
+
+            do_diff = op in ("diffusion", "diffusion_mass", "diffusion_convection_mass", "laplace", "test")
+            do_mass = op in ("mass", "diffusion_mass", "diffusion_convection_mass", "test")
+            do_conv = op in ("convection", "diffusion_convection_mass", "test")
+            if do_diff:
+                grad_phys = np.einsum("ni,eij->enj", dndxi, inv_j, optimize=True)
+                diff_term = np.einsum("eik,ejk->eij", grad_phys, grad_phys, optimize=True)
+                if op == "test":
+                    diff_scale = (1.0 + 0.25 * coeff[:, :6].mean(axis=1)).reshape(-1, 1, 1)
+                    ke += scale * diff_scale * diff_term
+                else:
+                    ke += scale * diff_term
+            if do_mass:
+                nn = np.outer(nvals, nvals)[None, :, :]
+                if op == "test":
+                    mass_scale = (0.55 + 0.10 * coeff[:, 6:12].mean(axis=1)).reshape(-1, 1, 1)
+                    ke += scale * mass_scale * nn
+                else:
+                    ke += scale * nn
+            if do_conv:
+                if grad_phys is None:
+                    grad_phys = np.einsum("ni,eij->enj", dndxi, inv_j, optimize=True)
+                ug = np.einsum("ek,ejk->ej", vel, grad_phys, optimize=True)
+                conv = nvals[None, :, None] * ug[:, None, :]
+                if op == "test":
+                    conv_scale = (0.60 + 0.10 * coeff[:, 12:18].mean(axis=1)).reshape(-1, 1, 1)
+                    ke += scale * conv_scale * conv
+                    diag_scale = (0.01 * coeff[:, 18:20].sum(axis=1)).reshape(-1, 1, 1)
+                    ke += scale * diag_scale * eye6
+                else:
+                    ke += scale * conv
+        t1 = time.perf_counter()
+
+        elapsed = t1 - t0
+        qn = len(qps)
+        flops = float(n_elements * qn) * flops_per_elem_qp("prism6", op)
+        bytes_moved = float(n_elements * qn) * bytes_per_elem_qp("prism6", dtype)
         gflops = flops / max(elapsed, 1e-12) / 1e9
         gbps = bytes_moved / max(elapsed, 1e-12) / 1e9
         _ = float(ke[0, 0, 0]) if n_elements > 0 else 0.0

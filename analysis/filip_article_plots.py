@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt  # type: ignore
 import numpy as np  # type: ignore
 
 from analysis.roofline_model import _cpu_peaks, _gpu_peaks, _pick_record
+from fem_catalog import nshape as fem_nshape
 from optimization.problems import FemParametricProblem, FemParametricProblemConfig
 
 
@@ -50,6 +51,8 @@ PREFERRED_PLOT_ORDER = [
     "article_backend_comparison.png",
 ]
 PAPER_OPERATOR_PREFERENCE = [
+    "laplace",
+    "test",
     "diffusion",
     "diffusion_convection_mass",
     "diffusion_mass",
@@ -106,6 +109,8 @@ def _parse_backend_from_dir(path: Path) -> str:
 
 def _operator_title(name: str) -> str:
     mapping = {
+        "laplace": "Laplace",
+        "test": "TEST benchmark",
         "diffusion": "Diffusion (Poisson-like)",
         "mass": "Mass",
         "convection": "Convection",
@@ -265,10 +270,20 @@ def _paper_sweep_n_elements(base_cfg: dict[str, Any], backend: str) -> int:
         current = 1
     element_type = str(base_cfg.get("element_type", "tet4"))
     if backend == "cpu":
-        cap = 16_000 if element_type == "hex8" else 32_000
+        if element_type == "hex8":
+            cap = 16_000
+        elif element_type == "prism6":
+            cap = 20_000
+        else:
+            cap = 32_000
         floor = 8_000
     else:
-        cap = 24_000 if element_type == "hex8" else 64_000
+        if element_type == "hex8":
+            cap = 24_000
+        elif element_type == "prism6":
+            cap = 48_000
+        else:
+            cap = 64_000
         floor = 12_000
     return max(floor, min(current, cap))
 
@@ -351,6 +366,8 @@ def _paper_sweep_rows(run: dict[str, Any], refs: list[dict[str, Any]], plots_dir
     requested_backend = backend or "cpu"
 
     try:
+        ref_element_types = sorted({str(ref.get("element_type", "tet4")) for ref in refs}) or ["tet4"]
+        ref_operators = sorted({str(ref.get("operator", "diffusion")) for ref in refs}) or ["diffusion"]
         problem = FemParametricProblem(
             FemParametricProblemConfig(
                 backend=requested_backend,
@@ -361,8 +378,8 @@ def _paper_sweep_rows(run: dict[str, Any], refs: list[dict[str, Any]], plots_dir
                 n_elements_max=1,
                 n_qp_min=1,
                 n_qp_max=1,
-                element_types=["tet4"],
-                operators=["diffusion"],
+                element_types=ref_element_types,
+                operators=ref_operators,
                 dtypes=["float32"],
                 algorithm_variants=list(VARIANT_ORDER),
                 workgroup_sizes=[1, 32, 64, 128, 256, 512],
@@ -503,7 +520,7 @@ def _estimate_rw_bytes(row: dict[str, Any]) -> tuple[float, float]:
     etype = str(cfg.get("element_type", "tet4"))
     dtype = str(cfg.get("dtype", "float32"))
     itemsize = 4 if dtype == "float32" else 8
-    nshape = 4 if etype == "tet4" else 8
+    nshape = fem_nshape(etype)
 
     geo = float(n_elem * nshape * 3 * itemsize)
     stiff = float(n_elem * nshape * nshape * itemsize)

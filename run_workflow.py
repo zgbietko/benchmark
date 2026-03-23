@@ -391,10 +391,8 @@ def _filip_original_args(args: argparse.Namespace, backend: str) -> list[str]:
         str(args.repeats),
         "--execution-policy",
         "native_only",
-        "--operators",
-        "diffusion,diffusion_convection_mass",
-        "--element-types",
-        "tet4",
+        "--benchmark-case",
+        args.filip_case,
         "--variants",
         "qss,sqs,ssq",
         "--dtype",
@@ -749,6 +747,7 @@ def run_filip_original(args: argparse.Namespace) -> int:
         {
             "workflow": args.workflow,
             "resolved_backend": backend,
+            "filip_case": args.filip_case,
             "optimizer": "exhaustive_sweep",
             "exit_code": 0 if run_rc == 0 else 1,
         },
@@ -795,10 +794,10 @@ def main() -> None:
     ap.add_argument("--roofline-bytes", type=float, default=1_000_000_000.0)
     ap.add_argument("--real-runs", type=int, default=3)
     ap.add_argument("--real-fem-sizes", default="20000,100000,500000")
-    ap.add_argument("--real-fem-element-type", choices=["tet4", "hex8"], default="tet4")
+    ap.add_argument("--real-fem-element-type", choices=["tet4", "hex8", "prism6"], default="tet4")
     ap.add_argument(
         "--real-fem-operator",
-        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass"],
+        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass", "laplace", "test"],
         default="diffusion_mass",
     )
     ap.add_argument("--real-fem-n-qp", type=int, default=4)
@@ -806,6 +805,7 @@ def main() -> None:
     ap.add_argument("--population", type=int, default=12)
     ap.add_argument("--iterations", type=int, default=20)
     ap.add_argument("--repeats", type=int, default=3)
+    ap.add_argument("--filip-case", choices=["portable", "laplace_prism", "test_prism", "prism_pair"], default="prism_pair")
     args = ap.parse_args()
 
     if args.workflow == "cpu_benchmark":

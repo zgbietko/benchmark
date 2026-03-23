@@ -63,12 +63,21 @@ SCRIPT_CHOICES: List[str] = [
     "analysis/gpu_summary.py",
     "analysis/real_kernels_summary.py",
     "analysis/filip_article_plots.py",
+    "analysis/compare_legacy_filip_xlsx.py",
     "analysis/roofline_model.py",
     "analysis/generate_plots.py",
     "analysis/report.py",
     "analysis/data_quality.py",
     "analysis/normalize_gpu_csv.py",
 ]
+
+FILIP_CASE_CHOICES: List[str] = ["prism_pair", "laplace_prism", "test_prism", "portable"]
+FILIP_CASE_DESCRIPTIONS: Dict[str, str] = {
+    "prism_pair": "Filip-like prism campaign: laplace_prism + test_prism, 80 constrained option rows, QSS/SQS/SSQ.",
+    "laplace_prism": "Strict Filip laplace_prism case on prism6 with 6 quadrature points.",
+    "test_prism": "Strict Filip test_prism case on prism6 with 6 quadrature points.",
+    "portable": "Portable fallback used earlier: tet4 with diffusion and diffusion_convection_mass.",
+}
 
 OPTIMIZATION_PLOT_PREFERENCE: List[str] = [
     "article_paper_option_times.png",
@@ -159,11 +168,14 @@ TEMPLATES: Dict[str, Dict[str, str]] = {
             "--backend metal "
             "--profile paper "
             "--repeats 3 "
-            "--operators diffusion,diffusion_convection_mass "
-            "--element-types tet4 "
+            "--benchmark-case prism_pair "
             "--variants qss,sqs,ssq "
             "--dtype float32"
         ),
+    },
+    "[Analysis] Legacy XLSX compare": {
+        "script": "analysis/compare_legacy_filip_xlsx.py",
+        "args": "--current-operator laplace",
     },
     "[Firefly] GPU FMA": {
         "script": "run_firefly_optimization.py",
@@ -675,6 +687,7 @@ class AutotuneGui(tk.Tk):
         self.log_char_count = 0
         self.current_script: str = ""
         self.last_result_dir: Path | None = None
+        self.last_compare_dir: Path | None = None
         self.latest_optimization_data: Dict[str, Any] = {}
         self.latest_matrix_data: Dict[str, Any] = {}
         self.workflow_device_items: List[Dict[str, Any]] = []
@@ -838,6 +851,24 @@ class AutotuneGui(tk.Tk):
         self.workflow_iterations_var = tk.StringVar(value="20")
         ttk.Entry(top, textvariable=self.workflow_iterations_var, width=8).grid(row=6, column=1, sticky="w", padx=6, pady=(8, 0))
 
+        ttk.Label(top, text="Filip case").grid(row=6, column=2, sticky="w", pady=(8, 0))
+        self.workflow_filip_case_var = tk.StringVar(value="prism_pair")
+        ttk.Combobox(
+            top,
+            textvariable=self.workflow_filip_case_var,
+            values=FILIP_CASE_CHOICES,
+            state="readonly",
+            width=16,
+        ).grid(row=6, column=3, sticky="w", padx=6, pady=(8, 0))
+
+        self.workflow_filip_case_note_var = tk.StringVar(value=FILIP_CASE_DESCRIPTIONS["prism_pair"])
+        ttk.Label(
+            top,
+            textvariable=self.workflow_filip_case_note_var,
+            wraplength=620,
+            justify="left",
+        ).grid(row=6, column=4, columnspan=2, sticky="we", padx=6, pady=(8, 0))
+
         top.columnconfigure(1, weight=1)
         top.columnconfigure(5, weight=1)
 
@@ -870,6 +901,7 @@ class AutotuneGui(tk.Tk):
             self.workflow_trials_var,
             self.workflow_population_var,
             self.workflow_iterations_var,
+            self.workflow_filip_case_var,
         ):
             var.trace_add("write", lambda *_args: self._refresh_workflow_description())
 
@@ -1023,6 +1055,7 @@ class AutotuneGui(tk.Tk):
         ttk.Button(frm_top, text="Firefly Convergence", command=self._plot_firefly_convergence).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Firefly Scatter", command=self._plot_firefly_scatter).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Matrix Comparison", command=self._plot_matrix_comparison).pack(side="left", padx=2)
+        ttk.Button(frm_top, text="Legacy XLSX Compare", command=self._run_legacy_xlsx_compare).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Save Figure", command=self._save_current_figure).pack(side="left", padx=12)
 
         self.plot_host = ttk.Frame(self.tab_plots)
@@ -1280,6 +1313,8 @@ class AutotuneGui(tk.Tk):
             self.workflow_population_var.get().strip() or "12",
             "--iterations",
             self.workflow_iterations_var.get().strip() or "20",
+            "--filip-case",
+            self.workflow_filip_case_var.get().strip() or "prism_pair",
         ]
         extra = self.workflow_extra_text.get("1.0", "end").strip()
         if extra:
@@ -1291,7 +1326,14 @@ class AutotuneGui(tk.Tk):
 
     def _refresh_workflow_description(self) -> None:
         spec = WORKFLOWS.get(self.workflow_var.get(), {})
-        self.workflow_desc_var.set(spec.get("description", ""))
+        filip_case = self.workflow_filip_case_var.get().strip() or "prism_pair"
+        self.workflow_filip_case_note_var.set(FILIP_CASE_DESCRIPTIONS.get(filip_case, ""))
+        desc = spec.get("description", "")
+        if spec.get("id") == "filip_original":
+            extra = FILIP_CASE_DESCRIPTIONS.get(filip_case, "")
+            if extra:
+                desc = f"{desc} Selected case: {extra}"
+        self.workflow_desc_var.set(desc)
         script, args = self._workflow_command()
         self.workflow_preview_var.set(f"Command preview: python3 {script} {args}")
 
@@ -1536,6 +1578,8 @@ class AutotuneGui(tk.Tk):
             elif _script_match(script, "analysis/filip_article_plots.py"):
                 self._load_optimization_dir(out_dir)
                 self._show_current_optimization_plot()
+            elif _script_match(script, "analysis/compare_legacy_filip_xlsx.py"):
+                self._load_compare_dir(out_dir)
             elif _script_match(script, "run_fem_parametric_matrix.py"):
                 self._load_matrix_dir(out_dir)
             elif (
@@ -1563,6 +1607,8 @@ class AutotuneGui(tk.Tk):
             elif _script_match(script, "analysis/filip_article_plots.py"):
                 self._load_latest_optimization()
                 self._show_current_optimization_plot()
+            elif _script_match(script, "analysis/compare_legacy_filip_xlsx.py"):
+                self._set_results_text("".join(self.output_lines))
             elif _script_match(script, "analysis/generate_plots.py"):
                 self._show_latest_plot()
             elif _script_match(script, "run_filip_autotuning.py") or _script_match(script, "run_filip_original.py"):
@@ -1629,8 +1675,19 @@ class AutotuneGui(tk.Tk):
         elif _script_match(script, "run_filip_original.py") or (
             _script_match(script, "run_workflow.py") and workflow_id == "filip_original"
         ):
-            operators = _parse_csv_arg(_get_arg_value(args, "--operators", "diffusion,diffusion_convection_mass"))
-            element_types = _parse_csv_arg(_get_arg_value(args, "--element-types", "tet4"))
+            filip_case = _get_arg_value(args, "--benchmark-case", _get_arg_value(args, "--filip-case", "portable")).strip() or "portable"
+            case_defaults = {
+                "portable": (["diffusion", "diffusion_convection_mass"], ["tet4"]),
+                "laplace_prism": (["laplace"], ["prism6"]),
+                "test_prism": (["test"], ["prism6"]),
+                "prism_pair": (["laplace", "test"], ["prism6"]),
+            }
+            default_operators, default_element_types = case_defaults.get(
+                filip_case,
+                case_defaults["portable"],
+            )
+            operators = _parse_csv_arg(_get_arg_value(args, "--operators", ",".join(default_operators)))
+            element_types = _parse_csv_arg(_get_arg_value(args, "--element-types", ",".join(default_element_types)))
             variants = _parse_csv_arg(_get_arg_value(args, "--variants", "qss,sqs,ssq"))
             option_rows = _to_int_or_default(_get_arg_value(args, "--limit-option-rows", "80"), 80)
             self.progress_total = max(1, len(operators) * len(element_types) * len(variants) * option_rows)
@@ -1883,6 +1940,94 @@ class AutotuneGui(tk.Tk):
         ax.set_title(path.name)
         self.canvas.draw_idle()
         self.status_var.set(f"Loaded plot image: {path.name}")
+
+    @staticmethod
+    def _preferred_compare_plot(base: Path) -> Path | None:
+        if not base.exists():
+            return None
+        preferred = [
+            "legacy_vs_current_ns_per_unit.png",
+            "legacy_vs_current_kernel_ms.png",
+            "legacy_reference_ns_per_unit.png",
+            "legacy_reference_kernel_ms.png",
+        ]
+        for name in preferred:
+            candidate = base / name
+            if candidate.exists():
+                return candidate
+        pngs = [p for p in base.glob("*.png") if p.is_file()]
+        if not pngs:
+            return None
+        return max(pngs, key=lambda p: p.stat().st_mtime)
+
+    def _default_legacy_compare_operator(self) -> str:
+        data = self.latest_optimization_data or {}
+        summary = data.get("summary") or {}
+        operators = [str(op).strip().lower() for op in summary.get("operators", []) if str(op).strip()]
+        benchmark_case = str(summary.get("benchmark_case", "")).strip().lower()
+        if "laplace" in operators:
+            return "laplace"
+        if benchmark_case == "test_prism" and "test" in operators:
+            return "test"
+        if operators:
+            return operators[0]
+        best = summary.get("best_overall") or {}
+        config = best.get("config") or {}
+        operator = str(config.get("operator", "")).strip().lower()
+        return operator or "laplace"
+
+    def _load_compare_dir(self, path: Path) -> None:
+        summary_path = path / "summary.json"
+        if not summary_path.exists():
+            messagebox.showerror("Invalid compare directory", f"Missing file: {summary_path}")
+            return
+        try:
+            summary = _read_json(summary_path)
+        except Exception as exc:
+            messagebox.showerror("Load failed", str(exc))
+            return
+
+        self.last_compare_dir = path
+        self._set_results_text(summary)
+        selected = self._preferred_compare_plot(path)
+        if selected is not None:
+            self._plot_image_file(selected)
+        self.status_var.set(f"Loaded legacy comparison: {path.name}")
+
+    def _run_legacy_xlsx_compare(self) -> None:
+        if self.proc is not None and self.proc.poll() is None:
+            messagebox.showwarning("Process running", "Finish the current command before starting legacy comparison.")
+            return
+
+        optimization_dir = self.last_result_dir
+        if optimization_dir is None or not (optimization_dir / "summary.json").exists():
+            messagebox.showwarning("No optimization run", "Load or run a Filip benchmark first, then compare it against legacy XLSX.")
+            return
+
+        paths = filedialog.askopenfilenames(
+            title="Select legacy Filip XLSX files",
+            initialdir=str(Path.home() / "Downloads"),
+            filetypes=[("Excel", "*.xlsx"), ("All files", "*.*")],
+        )
+        if not paths:
+            return
+
+        operator = self._default_legacy_compare_operator()
+        args: List[str] = []
+        for path in paths:
+            args.extend(["--xlsx", path])
+        args.extend(
+            [
+                "--optimization-dir",
+                str(optimization_dir),
+                "--current-operator",
+                operator,
+            ]
+        )
+        self.script_var.set("analysis/compare_legacy_filip_xlsx.py")
+        self.args_text.delete("1.0", "end")
+        self.args_text.insert("1.0", " ".join(shlex.quote(x) for x in args))
+        self._run_command()
 
     def _load_optimization_dir(self, path: Path) -> None:
         summary_path = path / "summary.json"

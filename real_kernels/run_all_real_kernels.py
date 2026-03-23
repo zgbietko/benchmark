@@ -37,10 +37,10 @@ def main() -> None:
     ap.add_argument("--fem-n-qp", type=int, default=8)
     ap.add_argument("--fem-integration-sizes", type=str, default="100000,500000,1000000")
     ap.add_argument("--fem-integration-n-qp", type=int, default=4)
-    ap.add_argument("--fem-integration-element-type", choices=["tet4", "hex8"], default="tet4")
+    ap.add_argument("--fem-integration-element-type", choices=["tet4", "hex8", "prism6"], default="tet4")
     ap.add_argument(
         "--fem-integration-operator",
-        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass"],
+        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass", "laplace", "test"],
         default="diffusion_mass",
     )
     ap.add_argument("--with-fem-integration", action="store_true")

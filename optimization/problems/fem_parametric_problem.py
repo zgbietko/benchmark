@@ -8,19 +8,19 @@ import statistics as stats
 from typing import Any, Dict, List, Tuple
 
 from energy_utils import EnergyLogger
+from fem_catalog import (
+    SUPPORTED_ELEMENT_TYPES as _SUPPORTED_ELEMENT_TYPES,
+    SUPPORTED_OPERATORS as _SUPPORTED_OPERATORS,
+    bytes_per_elem_qp,
+    flops_per_elem_qp,
+    nshape as fem_nshape,
+    operator_elapsed_multiplier,
+    qp_cap,
+)
 
 from optimization.problem import EvaluationResult, OptimizationProblem
 from optimization.search_space import CategoricalVariable, IntegerVariable, SearchSpace
 
-
-_SUPPORTED_ELEMENT_TYPES = ("tet4", "hex8")
-_SUPPORTED_OPERATORS = (
-    "diffusion",
-    "mass",
-    "convection",
-    "diffusion_mass",
-    "diffusion_convection_mass",
-)
 _SUPPORTED_DTYPES = ("float32", "float64")
 _SUPPORTED_VARIANTS = ("qss", "sqs", "ssq")
 
@@ -308,33 +308,15 @@ class FemParametricProblem(OptimizationProblem):
 
     @staticmethod
     def _qp_cap(element_type: str) -> int:
-        return 4 if element_type == "tet4" else 8
+        return qp_cap(element_type)
 
     @staticmethod
     def _flops_per_elem_qp(element_type: str, operator: str) -> float:
-        if element_type == "tet4":
-            table = {
-                "diffusion": 330.0,
-                "mass": 120.0,
-                "convection": 210.0,
-                "diffusion_mass": 450.0,
-                "diffusion_convection_mass": 660.0,
-            }
-            return table[operator]
-        table = {
-            "diffusion": 1200.0,
-            "mass": 420.0,
-            "convection": 820.0,
-            "diffusion_mass": 1620.0,
-            "diffusion_convection_mass": 2440.0,
-        }
-        return table[operator]
+        return flops_per_elem_qp(element_type, operator)
 
     @staticmethod
     def _bytes_per_elem_qp(element_type: str, dtype: str) -> float:
-        itemsize = 4.0 if dtype == "float32" else 8.0
-        nshape = 4.0 if element_type == "tet4" else 8.0
-        return (nshape * 3.0 + nshape * nshape) * itemsize
+        return bytes_per_elem_qp(element_type, dtype)
 
     def _mapped_caps(self, backend: str) -> tuple[int, int, int, int]:
         is_light = backend in ("metal", "opencl")
@@ -621,6 +603,7 @@ class FemParametricProblem(OptimizationProblem):
         *,
         backend: str,
         element_type: str,
+        operator: str,
         variant: str,
         workgroup_size: int,
         use_workspace_for_pde_coeff: int,
@@ -654,9 +637,17 @@ class FemParametricProblem(OptimizationProblem):
             f *= 0.99 if backend in ("cuda", "hip", "opencl", "metal") else 1.01
 
         if compute_all_shape_fun_der:
-            f *= 1.01 if element_type == "tet4" else 0.97
+            if element_type == "tet4":
+                f *= 1.01
+            elif element_type == "prism6":
+                f *= 0.98
+            else:
+                f *= 0.97
         else:
-            f *= 1.03 if element_type == "hex8" else 1.00
+            if element_type in ("hex8", "prism6"):
+                f *= 1.03
+            else:
+                f *= 1.00
 
         if not coal_read:
             f *= 1.12 if backend in ("cuda", "hip", "opencl", "metal") else 1.03
@@ -664,19 +655,20 @@ class FemParametricProblem(OptimizationProblem):
             f *= 1.08 if backend in ("cuda", "hip", "opencl", "metal") else 1.02
 
         ideal_wg = 64
-        if backend in ("opencl", "metal"):
+        if backend in ("opencl", "metal") and element_type != "prism6":
             ideal_wg = 32
         if backend == "cpu":
             ideal_wg = 1
         wg_penalty = abs(int(workgroup_size) - ideal_wg) / max(float(ideal_wg), 1.0)
         f *= 1.0 + 0.08 * wg_penalty
+        f *= operator_elapsed_multiplier(element_type, operator)
 
         return max(0.55, min(2.5, f))
 
     def _estimate_candidate_memory_bytes(self, cfg_norm: Dict[str, Any]) -> int:
         n_elements = int(cfg_norm["n_elements"])
         n_qp = int(cfg_norm["n_qp"])
-        nshape = 4 if cfg_norm["element_type"] == "tet4" else 8
+        nshape = fem_nshape(cfg_norm["element_type"])
         itemsize = 4 if cfg_norm["dtype"] == "float32" else 8
 
         geo = n_elements * nshape * 3 * itemsize
@@ -789,8 +781,15 @@ class FemParametricProblem(OptimizationProblem):
                 operator=operator,
                 dtype=dtype,
             )
-        else:
+        elif element_type == "hex8":
             elapsed, gflops, gbps = self._runner.fem_integration_hex8(
+                n_elements=n_elements,
+                n_qp=n_qp,
+                operator=operator,
+                dtype=dtype,
+            )
+        else:
+            elapsed, gflops, gbps = self._runner.fem_integration_prism6(
                 n_elements=n_elements,
                 n_qp=n_qp,
                 operator=operator,
@@ -827,6 +826,7 @@ class FemParametricProblem(OptimizationProblem):
         time_factor = self._time_factor(
             backend=self.mode.resolved_backend,
             element_type=cfg_eff["element_type"],
+            operator=cfg_eff["operator"],
             variant=cfg_eff["algorithm_variant"],
             workgroup_size=cfg_eff["workgroup_size"],
             use_workspace_for_pde_coeff=cfg_eff["use_workspace_for_pde_coeff"],

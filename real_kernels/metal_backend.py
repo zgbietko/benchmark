@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+from fem_catalog import bytes_per_elem_qp, flops_per_elem_qp, operator_elapsed_multiplier, qp_cap
 
 try:
     import Metal  # type: ignore
@@ -378,46 +379,17 @@ class MetalRealBackend:
 
     @staticmethod
     def _flops_per_elem_qp(element_type: str, operator: str) -> float:
-        op = operator.lower()
-        if element_type == "tet4":
-            table = {
-                "diffusion": 330.0,
-                "mass": 120.0,
-                "convection": 210.0,
-                "diffusion_mass": 450.0,
-                "diffusion_convection_mass": 660.0,
-            }
-            if op in table:
-                return table[op]
-        elif element_type == "hex8":
-            table = {
-                "diffusion": 1200.0,
-                "mass": 420.0,
-                "convection": 820.0,
-                "diffusion_mass": 1620.0,
-                "diffusion_convection_mass": 2440.0,
-            }
-            if op in table:
-                return table[op]
-        raise ValueError(f"Unsupported operator: {operator}")
+        return flops_per_elem_qp(element_type, operator)
 
     @staticmethod
     def _bytes_per_elem_qp(element_type: str, dtype: str) -> float:
         if dtype != "float32":
             raise ValueError("MetalRealBackend currently supports only float32")
-        if element_type == "tet4":
-            return float((4 * 3 + 4 * 4) * 4)
-        if element_type == "hex8":
-            return float((8 * 3 + 8 * 8) * 4)
-        raise ValueError(f"Unsupported element_type: {element_type}")
+        return bytes_per_elem_qp(element_type, dtype)
 
     @staticmethod
     def _qp_cap(element_type: str) -> int:
-        if element_type == "tet4":
-            return 4
-        if element_type == "hex8":
-            return 8
-        return 1
+        return qp_cap(element_type)
 
     def _fem_integration_mapped_from_fem_element(
         self,
@@ -436,6 +408,7 @@ class MetalRealBackend:
             raise ValueError("MetalRealBackend currently supports only float32")
         n_qp_eff = max(1, min(int(n_qp), self._qp_cap(element_type)))
         elapsed, _ = self.fem_element(n_elements=max(1, int(n_elements)), n_qp=n_qp_eff, dtype=dtype)
+        elapsed *= operator_elapsed_multiplier(element_type, operator)
         flops = float(max(1, int(n_elements)) * n_qp_eff) * self._flops_per_elem_qp(element_type, operator)
         bytes_moved = float(max(1, int(n_elements)) * n_qp_eff) * self._bytes_per_elem_qp(element_type, dtype)
         gflops = flops / max(elapsed, 1e-12) / 1e9
@@ -466,6 +439,21 @@ class MetalRealBackend:
     ) -> Tuple[float, float, float]:
         return self._fem_integration_mapped_from_fem_element(
             element_type="hex8",
+            n_elements=n_elements,
+            n_qp=n_qp,
+            operator=operator,
+            dtype=dtype,
+        )
+
+    def fem_integration_prism6(
+        self,
+        n_elements: int,
+        n_qp: int = 6,
+        operator: str = "laplace",
+        dtype: str = "float32",
+    ) -> Tuple[float, float, float]:
+        return self._fem_integration_mapped_from_fem_element(
+            element_type="prism6",
             n_elements=n_elements,
             n_qp=n_qp,
             operator=operator,

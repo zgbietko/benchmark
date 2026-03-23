@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 from device_resolution import resolve_device_index
 from analysis.filip_article_plots import generate_article_plots, _estimate_rw_bytes, _estimate_share, _roofline_peaks_for_backend
+from fem_catalog import qp_cap as fem_qp_cap
 from optimization.problems import FemParametricProblem, FemParametricProblemConfig
 
 
@@ -57,12 +58,39 @@ ORIGINAL_FOOTER_HEADERS = [
 ]
 PROFILE_SCALE = {"quick": 0.5, "paper": 1.0, "full": 1.5}
 BASE_ELEMENTS = {
-    "cpu": {"tet4": 12000, "hex8": 6000},
-    "native_gpu": {"tet4": 64000, "hex8": 24000},
-    "mapped_gpu": {"tet4": 32000, "hex8": 12000},
+    "cpu": {"tet4": 12000, "hex8": 6000, "prism6": 9000},
+    "native_gpu": {"tet4": 64000, "hex8": 24000, "prism6": 48000},
+    "mapped_gpu": {"tet4": 32000, "hex8": 12000, "prism6": 24000},
 }
-DEFAULT_OPERATORS = ["diffusion", "diffusion_convection_mass"]
-DEFAULT_ELEMENT_TYPES = ["tet4"]
+CASE_PRESETS: dict[str, dict[str, Any]] = {
+    "portable": {
+        "label": "Portable tet4 fallback",
+        "operators": ["diffusion", "diffusion_convection_mass"],
+        "element_types": ["tet4"],
+        "n_qp": 4,
+    },
+    "laplace_prism": {
+        "label": "Filip Laplace prism",
+        "operators": ["laplace"],
+        "element_types": ["prism6"],
+        "n_qp": 6,
+    },
+    "test_prism": {
+        "label": "Filip TEST prism",
+        "operators": ["test"],
+        "element_types": ["prism6"],
+        "n_qp": 6,
+    },
+    "prism_pair": {
+        "label": "Filip Laplace + TEST prism",
+        "operators": ["laplace", "test"],
+        "element_types": ["prism6"],
+        "n_qp": 6,
+    },
+}
+DEFAULT_BENCHMARK_CASE = "portable"
+DEFAULT_OPERATORS = list(CASE_PRESETS[DEFAULT_BENCHMARK_CASE]["operators"])
+DEFAULT_ELEMENT_TYPES = list(CASE_PRESETS[DEFAULT_BENCHMARK_CASE]["element_types"])
 
 
 def _parse_csv(raw: str) -> list[str]:
@@ -90,18 +118,18 @@ def _is_finite_positive(value: float) -> bool:
 
 
 def _make_out_dir(backend: str) -> Path:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     out = ROOT / "data" / "optimization" / f"{ts}__filip_original__backend-{backend}"
     out.mkdir(parents=True, exist_ok=True)
     return out
 
 
 def _qp_cap(element_type: str) -> int:
-    if element_type == "tet4":
-        return 4
-    if element_type == "hex8":
-        return 8
-    return 1
+    return fem_qp_cap(element_type)
+
+
+def _resolve_case_preset(name: str) -> dict[str, Any]:
+    return dict(CASE_PRESETS.get(str(name).strip().lower() or DEFAULT_BENCHMARK_CASE, CASE_PRESETS[DEFAULT_BENCHMARK_CASE]))
 
 
 def _indeks_binary_reflected(m: int) -> int:
@@ -502,26 +530,31 @@ def main() -> None:
     ap.add_argument("--eval-cache-size", type=int, default=1024)
     ap.add_argument("--screening-repeats", type=int, default=1)
     ap.add_argument("--screening-prune-factor", type=float, default=0.0)
-    ap.add_argument("--operators", default=",".join(DEFAULT_OPERATORS))
-    ap.add_argument("--element-types", default=",".join(DEFAULT_ELEMENT_TYPES))
+    ap.add_argument("--benchmark-case", choices=sorted(CASE_PRESETS.keys()), default=DEFAULT_BENCHMARK_CASE)
+    ap.add_argument("--operators", default="")
+    ap.add_argument("--element-types", default="")
     ap.add_argument("--variants", default=",".join(VARIANT_ORDER))
     ap.add_argument("--dtype", choices=["float32", "float64"], default="float32")
-    ap.add_argument("--n-qp", type=int, default=0, help="0 = automatic (element cap, e.g. 4 for tet4)")
+    ap.add_argument("--n-qp", type=int, default=-1, help="-1 = preset default, 0 = automatic cap, >0 = explicit")
     ap.add_argument("--n-elements", type=int, default=0, help="0 = automatic, chosen conservatively from memory budget")
     ap.add_argument("--workgroup-size", type=int, default=0, help="0 = automatic, fixed workgroup close to Filip's workflow")
     ap.add_argument("--no-article-plots", action="store_true")
     ap.add_argument("--limit-option-rows", type=int, default=0, help=argparse.SUPPRESS)
     args = ap.parse_args()
 
+    case_preset = _resolve_case_preset(args.benchmark_case)
+    benchmark_case = str(args.benchmark_case).strip().lower() or DEFAULT_BENCHMARK_CASE
+
     operators = _parse_csv(args.operators)
     element_types = _parse_csv(args.element_types)
     variants = _parse_csv(args.variants)
     if not operators:
-        operators = list(DEFAULT_OPERATORS)
+        operators = list(case_preset["operators"])
     if not element_types:
-        element_types = list(DEFAULT_ELEMENT_TYPES)
+        element_types = list(case_preset["element_types"])
     if not variants:
         variants = list(VARIANT_ORDER)
+    requested_n_qp = int(case_preset["n_qp"]) if int(args.n_qp) < 0 else int(args.n_qp)
 
     out_dir = _make_out_dir(args.backend)
     option_rows = _filip_option_rows()
@@ -573,7 +606,7 @@ def main() -> None:
         element_types=element_types,
         operators=operators,
         dtype=args.dtype,
-        requested_n_qp=int(args.n_qp),
+        requested_n_qp=requested_n_qp,
         requested_n_elements=int(args.n_elements),
         workgroup_size=workgroup_size,
     )
@@ -587,6 +620,7 @@ def main() -> None:
     print(f"device index req  : {int(args.device_index)}")
     print(f"device index used : {int(resolved_device_index)} ({device_resolution_reason})")
     print(f"profile           : {args.profile}")
+    print(f"benchmark case    : {benchmark_case} ({case_preset['label']})")
     print(f"repeats           : {args.repeats}")
     print(f"variants          : {','.join(variants)}")
     print(f"option rows       : {len(option_rows)}")
@@ -711,6 +745,8 @@ def main() -> None:
     summary = {
         "method": "filip_original",
         "benchmark_mode": "strict_filip",
+        "benchmark_case": benchmark_case,
+        "benchmark_case_label": str(case_preset["label"]),
         "problem": problem.name,
         "backend": args.backend,
         "resolved_backend": problem.mode.resolved_backend,
@@ -726,7 +762,7 @@ def main() -> None:
         "operators": operators,
         "element_types": element_types,
         "workgroup_size": int(workgroup_size),
-        "n_qp_requested": int(args.n_qp),
+        "n_qp_requested": int(requested_n_qp),
         "n_elements_requested": int(args.n_elements),
         "cases": cases,
         "option_rows": len(option_rows),

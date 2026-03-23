@@ -94,6 +94,13 @@ def _run_backend(
                         operator=operator,
                         dtype=dtype,
                     )
+                elif element_type == "prism6":
+                    elapsed, gflops, gbps = be.fem_integration_prism6(
+                        n_elements=n_elem,
+                        n_qp=n_qp,
+                        operator=operator,
+                        dtype=dtype,
+                    )
                 else:
                     raise ValueError(f"Unsupported element_type: {element_type}")
                 ai = gflops / gbps if gbps > 0 else float("nan")
@@ -130,7 +137,7 @@ def _run_backend(
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Real-kernel FEM integration benchmark (tet4/hex8).")
+    ap = argparse.ArgumentParser(description="Real-kernel FEM integration benchmark (tet4/hex8/prism6).")
     ap.add_argument(
         "--backend",
         choices=["cpu", "cuda", "metal", "hip", "opencl", "amd", "intel", "all"],
@@ -140,10 +147,10 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--dtype", choices=["float32", "float64"], default="float32")
     ap.add_argument("--sizes", type=str, default="20000,100000,500000")
-    ap.add_argument("--element-type", choices=["tet4", "hex8"], default="tet4")
+    ap.add_argument("--element-type", choices=["tet4", "hex8", "prism6"], default="tet4")
     ap.add_argument(
         "--operator",
-        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass"],
+        choices=["diffusion", "mass", "convection", "diffusion_mass", "diffusion_convection_mass", "laplace", "test"],
         default="diffusion_mass",
     )
     ap.add_argument("--n-qp", type=int, default=4)
