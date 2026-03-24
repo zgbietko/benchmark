@@ -14,8 +14,9 @@ usage() {
   cat <<'EOF'
 Usage: scripts/setup_and_run_filip_exact.sh [options]
 
-Install Intel oneAPI Base Toolkit on Ubuntu, load oneAPI environment, activate
-the repo virtualenv if present, and run Filip exact-reference benchmark.
+Install the minimal Intel oneAPI subset needed for Filip exact-reference runs
+on Ubuntu, load oneAPI environment, activate the repo virtualenv if present,
+and run the benchmark.
 
 Options:
   --case NAME         laplace_prism | test_prism | prism_pair (default: laplace_prism)
@@ -95,6 +96,19 @@ run_root() {
   fi
 }
 
+apt_install_if_available() {
+  local install_list=()
+  local pkg
+  for pkg in "$@"; do
+    if apt-cache show "$pkg" >/dev/null 2>&1; then
+      install_list+=("$pkg")
+    fi
+  done
+  if [[ ${#install_list[@]} -gt 0 ]]; then
+    run_root apt-get install -y "${install_list[@]}"
+  fi
+}
+
 install_oneapi_repo() {
   local keyring="/usr/share/keyrings/oneapi-archive-keyring.gpg"
   local listfile="/etc/apt/sources.list.d/oneAPI.list"
@@ -109,12 +123,22 @@ install_oneapi_repo() {
 }
 
 install_packages() {
-  echo "[INFO] Installing Ubuntu prerequisites and Intel oneAPI Base Toolkit"
+  echo "[INFO] Installing Ubuntu prerequisites and minimal Intel oneAPI toolchain"
   run_root apt-get update
   run_root apt-get install -y wget gpg ca-certificates software-properties-common
   install_oneapi_repo
   run_root apt-get update
-  run_root apt-get install -y intel-oneapi-base-toolkit tcsh
+  local compiler_pkg=""
+  if apt-cache show intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic >/dev/null 2>&1; then
+    compiler_pkg="intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic"
+  elif apt-cache show intel-oneapi-compiler-dpcpp-cpp >/dev/null 2>&1; then
+    compiler_pkg="intel-oneapi-compiler-dpcpp-cpp"
+  else
+    echo "[ERROR] No supported Intel oneAPI compiler package found in Intel APT repo." >&2
+    exit 2
+  fi
+  run_root apt-get install -y "${compiler_pkg}" intel-oneapi-mkl-devel tcsh
+  apt_install_if_available csh
 }
 
 source_oneapi() {
