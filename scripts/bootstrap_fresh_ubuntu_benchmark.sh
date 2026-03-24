@@ -269,6 +269,26 @@ install_oneapi_minimal() {
   run_root apt-get install -y "${compiler_pkg}" intel-oneapi-mkl-devel
 }
 
+source_oneapi_safe() {
+  local oneapi_file=""
+  if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
+    oneapi_file="/opt/intel/oneapi/setvars.sh"
+  else
+    oneapi_file="$(find /opt/intel/oneapi -maxdepth 2 -type f -name oneapi-vars.sh 2>/dev/null | sort | tail -n 1 || true)"
+  fi
+
+  if [[ -z "${oneapi_file}" ]]; then
+    return 1
+  fi
+
+  export OCL_ICD_FILENAMES="${OCL_ICD_FILENAMES-}"
+  set +u
+  # shellcheck disable=SC1090
+  source "${oneapi_file}" > /dev/null
+  set -u
+  return 0
+}
+
 ensure_venv_and_python_deps() {
   echo "[INFO] Creating/updating Python environment"
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
@@ -408,8 +428,11 @@ write_activation_helper() {
 set -euo pipefail
 source "${VENV_DIR}/bin/activate"
 if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
+  export OCL_ICD_FILENAMES="\${OCL_ICD_FILENAMES-}"
+  set +u
   # shellcheck disable=SC1091
   source /opt/intel/oneapi/setvars.sh > /dev/null
+  set -u
 fi
 export MPLCONFIGDIR="${ROOT}/.cache/matplotlib"
 echo "[OK] benchmark env active"
@@ -425,10 +448,7 @@ run_preflight_checks() {
   echo "[INFO] Running preflight"
   # shellcheck disable=SC1091
   source "${VENV_DIR}/bin/activate"
-  if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
-    # shellcheck disable=SC1091
-    source /opt/intel/oneapi/setvars.sh > /dev/null
-  fi
+  source_oneapi_safe || true
 
   python "${ROOT}/run_fem_parametric_preflight.py" --backend cpu,intel --platform-profile auto || true
   python "${ROOT}/run_device_discovery.py" --backends intel,opencl || true

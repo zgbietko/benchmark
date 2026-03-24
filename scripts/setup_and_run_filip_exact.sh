@@ -143,16 +143,22 @@ install_packages() {
 
 source_oneapi() {
   if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
+    export OCL_ICD_FILENAMES="${OCL_ICD_FILENAMES-}"
+    set +u
     # shellcheck disable=SC1091
     source /opt/intel/oneapi/setvars.sh > /dev/null
+    set -u
     return 0
   fi
 
   local latest_vars
   latest_vars="$(find /opt/intel/oneapi -maxdepth 2 -type f -name oneapi-vars.sh 2>/dev/null | sort | tail -n 1 || true)"
   if [[ -n "${latest_vars}" ]]; then
+    export OCL_ICD_FILENAMES="${OCL_ICD_FILENAMES-}"
+    set +u
     # shellcheck disable=SC1090
     source "${latest_vars}" > /dev/null
+    set -u
     return 0
   fi
 
