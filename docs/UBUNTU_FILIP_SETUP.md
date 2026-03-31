@@ -220,6 +220,15 @@ Wymagania dodatkowe:
 - `csh/tcsh`, bo oryginalny `Makefile_explicit` używa `SHELL = /bin/csh`
 - w praktyce: `icx` + Intel oneAPI MKL/OpenMP albo ręcznie dostosowany plik `make.*`
 
+Na aktualnym bootstrapie Ubuntu exact runner sam:
+
+- dobiera zgodny root `oneAPI compiler/latest`
+- ustawia runtime `PATH` i `LD_LIBRARY_PATH` dla `icx` oraz `MKL`
+- rozpakowuje `mesh_prism.dmp.zip` do workspace exact
+- omija problematyczne `deep_clean` ze starego `Makefile_explicit`
+
+Dzięki temu exact mode powinien uruchamiać się z GUI i z `run_workflow.py` bez ręcznych `export`.
+
 Uruchomienie:
 
 ```bash

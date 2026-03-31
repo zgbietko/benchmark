@@ -269,6 +269,30 @@ install_oneapi_minimal() {
   run_root apt-get install -y "${compiler_pkg}" intel-oneapi-mkl-devel
 }
 
+normalize_oneapi_compiler_latest() {
+  local base="/opt/intel/oneapi/compiler"
+  local latest="${base}/latest"
+  local chosen=""
+  local candidate=""
+
+  if [[ -d "${latest}/linux/compiler/lib/intel64_lin" ]] && [[ -x "${latest}/linux/bin/icx" ]]; then
+    return 0
+  fi
+
+  for candidate in "${base}"/*; do
+    [[ -d "${candidate}" ]] || continue
+    if [[ -d "${candidate}/linux/compiler/lib/intel64_lin" ]] && [[ -x "${candidate}/linux/bin/icx" ]]; then
+      chosen="${candidate}"
+      break
+    fi
+  done
+
+  if [[ -n "${chosen}" ]]; then
+    echo "[INFO] Pointing oneAPI compiler 'latest' at compatible root: ${chosen}"
+    run_root ln -sfn "$(basename "${chosen}")" "${latest}"
+  fi
+}
+
 source_oneapi_safe() {
   local oneapi_file=""
   if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
@@ -425,7 +449,6 @@ write_activation_helper() {
   mkdir -p "${ROOT}/scripts/generated"
   cat > "${ROOT}/scripts/generated/activate_benchmark_env.sh" <<EOF
 #!/usr/bin/env bash
-set -euo pipefail
 source "${VENV_DIR}/bin/activate"
 if [[ -f /opt/intel/oneapi/setvars.sh ]]; then
   export OCL_ICD_FILENAMES="\${OCL_ICD_FILENAMES-}"
@@ -498,6 +521,7 @@ configure_groups
 install_nvidia_driver_if_needed
 install_cuda_toolkit_if_requested
 install_oneapi_minimal
+normalize_oneapi_compiler_latest
 configure_git_identity
 setup_github_ssh_key
 ensure_venv_and_python_deps

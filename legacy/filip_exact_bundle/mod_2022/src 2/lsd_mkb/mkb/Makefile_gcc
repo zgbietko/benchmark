@@ -1,0 +1,32 @@
+# Makefile for multigrid preconditioned Krylow solver based on blocks
+
+# C compiler
+CC = gcc
+
+# Loader 
+LD = gcc
+
+# Archiver
+AR = ar r
+
+# C compiler flags
+CFL = -O3  -funroll-loops -ffast-math
+
+libmkb.a : it_bliter_blocks.o it_bliter_core.o it_gmres.o it_bliter_util.o 
+	$(AR) $@ it_bliter_blocks.o it_bliter_core.o it_gmres.o it_bliter_util.o
+
+
+it_bliter_blocks.o : it_bliter_blocks.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_blocks.c  -o $@ $(INC)
+
+it_bliter_core.o : it_bliter_core.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_core.c  -o $@ $(INC)
+
+it_gmres.o : it_gmres.c it_bliter.h 
+	$(CC) $(CFL) -c it_gmres.c  -o $@ $(INC)
+
+it_bliter_util.o : it_bliter_util.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_util.c  -o $@ $(INC)
+
+clean:
+	rm -f *.o *.a *~

@@ -1,0 +1,2 @@
+mpiexec -np 3 xterm -sb -sl 10000 -e gdb ../../../../bin/$MOD_FEM_ARCH/MFEM_ns_supg_prism_2D_std_krb_mpi -q -x gdb_file
+

@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from typing import Any, Iterable
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parent
@@ -102,6 +103,102 @@ CASE_SPECS: dict[str, tuple[ExactCaseSpec, ...]] = {
     ),
 }
 CASE_SPECS["prism_pair"] = (*CASE_SPECS["laplace_prism"], *CASE_SPECS["test_prism"])
+
+
+def _dedupe_paths(values: Iterable[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
+def _prepend_env_paths(env: dict[str, str], key: str, values: Iterable[str]) -> None:
+    current = [part for part in str(env.get(key, "")).split(":") if part]
+    env[key] = ":".join(_dedupe_paths([*(str(v) for v in values), *current]))
+
+
+def _candidate_compiler_roots() -> list[Path]:
+    base = Path("/opt/intel/oneapi/compiler")
+    if not base.exists():
+        return []
+    roots: list[Path] = []
+    latest = base / "latest"
+    if latest.exists():
+        roots.append(latest.resolve())
+    for child in sorted(base.iterdir(), reverse=True):
+        if child.is_dir():
+            roots.append(child.resolve())
+    out: list[Path] = []
+    seen: set[str] = set()
+    for item in roots:
+        key = str(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _candidate_mkl_roots() -> list[Path]:
+    base = Path("/opt/intel/oneapi/mkl")
+    if not base.exists():
+        return []
+    roots: list[Path] = []
+    latest = base / "latest"
+    if latest.exists():
+        roots.append(latest.resolve())
+    for child in sorted(base.iterdir(), reverse=True):
+        if child.is_dir():
+            roots.append(child.resolve())
+    out: list[Path] = []
+    seen: set[str] = set()
+    for item in roots:
+        key = str(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _detect_compiler_root() -> Path | None:
+    for root in _candidate_compiler_roots():
+        if (root / "linux" / "bin" / "icx").exists() and (root / "linux" / "compiler" / "lib" / "intel64_lin").exists():
+            return root
+    return None
+
+
+def _detect_mkl_root() -> Path | None:
+    for root in _candidate_mkl_roots():
+        if (root / "include").exists() and (root / "lib" / "intel64").exists():
+            return root
+    return None
+
+
+def _augment_exact_env(env: dict[str, str]) -> dict[str, str]:
+    merged = dict(env)
+    compiler_root = _detect_compiler_root()
+    mkl_root = _detect_mkl_root()
+    if compiler_root is not None:
+        _prepend_env_paths(merged, "PATH", [str(compiler_root / "linux" / "bin")])
+        _prepend_env_paths(
+            merged,
+            "LD_LIBRARY_PATH",
+            [str(compiler_root / "linux" / "compiler" / "lib" / "intel64_lin")],
+        )
+    if mkl_root is not None:
+        _prepend_env_paths(merged, "LD_LIBRARY_PATH", [str(mkl_root / "lib" / "intel64")])
+    merged.setdefault("OCL_ICD_FILENAMES", str(env.get("OCL_ICD_FILENAMES", "")))
+    return merged
+
+
+def _which_in_env(cmd: str, env: dict[str, str]) -> str | None:
+    return shutil.which(cmd, path=str(env.get("PATH", "")))
 
 
 def _safe_float(value: Any) -> float:
@@ -243,7 +340,7 @@ def _require_workspace_files(src: Path, case_name: str) -> None:
         )
 
 
-def _require_exact_toolchain(arch: str, mod_dir: Path) -> None:
+def _require_exact_toolchain(arch: str, mod_dir: Path, env: dict[str, str]) -> None:
     arch_file = mod_dir / "src" / "platform_files" / f"make.{arch}"
     _require_path(arch_file, f"platform file make.{arch}")
 
@@ -251,7 +348,7 @@ def _require_exact_toolchain(arch: str, mod_dir: Path) -> None:
     problems: list[str] = []
 
     if re.search(r"^\s*(CC|CPPC|LD|LDPP)\s*=\s*icx\s*$", text, flags=re.MULTILINE):
-        if not shutil.which("icx"):
+        if not _which_in_env("icx", env):
             problems.append("missing compiler 'icx' in PATH")
 
     required_paths = [
@@ -285,6 +382,34 @@ def _require_exact_toolchain(arch: str, mod_dir: Path) -> None:
         )
 
 
+def _default_field_std_candidate(mod_dir: Path, case: ExactCaseSpec) -> Path | None:
+    preferred: list[Path] = []
+    if case.case_name == "laplace_prism":
+        preferred.append(mod_dir / "examples" / "pdd_conv_diff" / "diff_in_box" / "prism" / "std" / "arch" / "field_std.dmp")
+    if case.case_name == "test_prism":
+        preferred.append(mod_dir / "examples" / "pdd_conv_diff" / "test_num_int" / "prism" / "std" / "arch" / "field_std.dmp")
+    preferred.append(mod_dir / "examples" / "pdd_conv_diff" / "diff_in_box" / "prism" / "std" / "arch" / "field_std.dmp")
+    preferred.append(mod_dir / "examples" / "pdd_conv_diff" / "wave_in_box_dg" / "arch" / "field_std.dmp")
+    for candidate in preferred:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _prepare_workspace_runtime_files(dst: Path, *, mod_dir: Path, case: ExactCaseSpec) -> None:
+    mesh_zip = dst / "mesh_prism.dmp.zip"
+    mesh_plain = dst / "mesh_prism.dmp"
+    if not mesh_plain.exists() and mesh_zip.exists():
+        with zipfile.ZipFile(mesh_zip, "r") as zf:
+            zf.extractall(dst)
+
+    field_plain = dst / "field_std.dmp"
+    if not field_plain.exists():
+        candidate = _default_field_std_candidate(mod_dir, case)
+        if candidate is not None:
+            shutil.copy2(candidate, field_plain)
+
+
 def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, input_override: Path | None, limit_option_rows: int) -> tuple[Path, list[list[int]]]:
     src = mod_dir / case.work_subdir
     if not src.exists():
@@ -305,6 +430,7 @@ def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, i
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
+    _prepare_workspace_runtime_files(dst, mod_dir=mod_dir, case=case)
 
     if input_override is not None:
         shutil.copy2(input_override, dst / "input_interactive.txt")
@@ -320,7 +446,7 @@ def _copy_case_workspace(*, mod_dir: Path, case: ExactCaseSpec, out_dir: Path, i
 
 
 def _build_case(*, mod_dir: Path, arch: str, rebuild: bool, log_dir: Path) -> Path:
-    env = os.environ.copy()
+    env = _augment_exact_env(os.environ.copy())
     env["MOD_FEM_DIR"] = str(mod_dir)
     env["MOD_FEM_ARCH"] = arch
     src_dir = mod_dir / "src"
@@ -329,21 +455,13 @@ def _build_case(*, mod_dir: Path, arch: str, rebuild: bool, log_dir: Path) -> Pa
     csh_shell = _detect_csh_shell()
     if not rebuild:
         return _require_path(binary, f"existing OpenCL binary for arch {arch}")
-    _require_exact_toolchain(arch, mod_dir)
-    cmds: list[list[str]] = []
-    if rebuild:
-        cmds.extend(
-            [
-                ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "deep_clean"],
-                ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "clean"],
-            ]
-        )
-    cmds.extend(
-        [
-            ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit"],
-            ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "conv_diff_prism_std_krb_ocl"],
-        ]
-    )
+    _require_exact_toolchain(arch, mod_dir, env)
+    shutil.rmtree(mod_dir / "obj" / arch, ignore_errors=True)
+    shutil.rmtree(mod_dir / "bin" / arch, ignore_errors=True)
+    cmds: list[list[str]] = [
+        ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "config"],
+        ["make", f"SHELL={csh_shell}", "-f", "Makefile_explicit", "conv_diff_prism_std_krb_ocl"],
+    ]
     with build_log.open("w", encoding="utf-8") as log:
         for cmd in cmds:
             log.write(f"$ {' '.join(cmd)}\n")
@@ -699,7 +817,7 @@ def _run_case(
     total_evals: int,
     device_label: str,
 ) -> tuple[list[dict[str, Any]], int]:
-    env = os.environ.copy()
+    env = _augment_exact_env(os.environ.copy())
     env["MOD_FEM_DIR"] = str(mod_dir)
     env["MOD_FEM_ARCH"] = case.arch
 

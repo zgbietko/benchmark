@@ -1,0 +1,35 @@
+# C compiler
+CC = icc
+
+# C++ compiler
+CPPC = icpc
+
+# Loader (to link with Fortran libraries)
+LD = icc
+
+# C++ Loader (to link with pardiso solver)
+LDPP = icpc 
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include
+
+# Standard and/or local libraries
+LIB = -L$(MOD_FEM_OBJ_DIR) -lmkl_lapack -lmkl_core -lmkl_intel_lp64 -lmkl_intel_thread -lguide -lpthread -lm
+
+# C optimization and other flags
+#CFL =  -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -Wconversion
+CFL = -O3
+
+# Loader optimization and other flags
+#LDFL = -g
+LDFL = -O3
+

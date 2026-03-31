@@ -1,0 +1,44 @@
+# Makefile for problem dependent elasticity module 
+
+$(MOD_FEM_OBJ_DIR)/pdl_elast_lib.a : \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_pde.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_ls_std_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_util.o
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/pds_elast_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_pde.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_ls_std_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_elast_util.o
+
+# problem dependent obj files for elasting modules
+$(MOD_FEM_OBJ_DIR)/pds_elast_main.o : pds_elast_main.c \
+	$(MOD_FEM_INC_DIR)/uth_intf.h \
+	$(MOD_FEM_INC_DIR)/mmh_intf.h \
+	$(MOD_FEM_INC_DIR)/aph_intf.h \
+	$(MOD_FEM_INC_DIR)/sih_intf.h
+	$(CC) $(CFL) -c pds_elast_main.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_elast_pde.o : pds_elast_pde.c \
+	$(MOD_FEM_INC_DIR)/pdh_intf.h pdh_elast.h 
+	$(CC) $(CFL) -c pds_elast_pde.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_elast_ls_std_intf.o : pds_elast_ls_std_intf.c \
+	$(MOD_FEM_INC_DIR)/pdh_intf.h pdh_elast.h
+	$(CC) $(CFL) -c pds_elast_ls_std_intf.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_elast_util.o : \
+           pds_elast_util.c \
+	$(MOD_FEM_INC_DIR)/pdh_intf.h pdh_elast.h
+	$(CC) $(CFL) -c pds_elast_util.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_elast_adapt.o : pds_elast_adapt.c \
+	$(MOD_FEM_INC_DIR)/uth_intf.h \
+	$(MOD_FEM_INC_DIR)/mmh_intf.h \
+	$(MOD_FEM_INC_DIR)/aph_intf.h \
+	$(MOD_FEM_INC_DIR)/sih_intf.h
+	$(CC) $(CFL) -c pds_elast_adapt.c -o $@ $(INC)
+
+clean:
+	rm -f *~ *.o *.a

@@ -1,0 +1,64 @@
+/* ------------------------------------------------------------ */
+/* IMPORTANT:                                                   */
+/*      - both, C and C++ style comments are supported          */
+/*      - ALWAYS use "." (dot) when entering numbers!           */
+/*        For ex. instead of 20, put 20.0                       */
+/*      - Use same unit system for all values!                  */
+/* ------------------------------------------------------------ */
+
+
+bc:
+(
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:1;
+    symmetry:{};
+  },
+
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:2;
+    symmetry:{};
+  },
+
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:3; //boundary number
+    inflow_rect_2d:{ //bc type
+      v = 1.0; //bc parameters
+      n1 = [0.0, 1.0, 0.0];
+      n2 = [0.0, 1.0, 0.0625];
+      n3 = [0.0, 0.5, 0.0];
+      n4 = [0.0, 0.5, 0.625];
+    };
+  },
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:6;
+    noslip:{};
+  },
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:5;
+    noslip:{};
+  },
+  
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:9;
+    noslip:{};
+  },
+  
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:4;
+    outflow:{
+      pressure = 0.0;
+    };
+  }
+
+);
+
+

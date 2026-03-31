@@ -1,0 +1,40 @@
+/* ------------------------------------------------------------ */
+/* IMPORTANT:                                                   */
+/*      - both, C and C++ style comments are supported          */
+/*      - ALWAYS use "." (dot) when entering numbers!           */
+/*        For ex. instead of 20, put 20.0                       */
+/*      - Use same unit system for all values!                  */
+/* ------------------------------------------------------------ */
+
+
+bc:
+(
+ 
+  {
+    bcnum:5; //bottom side
+    isothermal:{temp = 300.0; };
+  },
+  {
+    bcnum:1; //bottom side
+    normal_heat_flux:{flux = 0.0;};
+  },
+  {
+    bcnum:2; //bottom side
+    normal_heat_flux:{flux = 0.0;};
+  },
+  {
+    bcnum:3; //bottom side
+    normal_heat_flux:{flux = 0.0;};
+  },
+  {
+    bcnum:4; //bottom side
+    normal_heat_flux:{flux = 0.0;};
+  },  
+   {
+    bcnum:6; //bottom side
+    isothermal:{temp = 300.0; };
+  }
+    
+);
+
+

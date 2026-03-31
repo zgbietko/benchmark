@@ -1,0 +1,4 @@
+dynamic_viscosity = 0.00066666666665 = Re1000
+dynamic_viscosity = 0.0066666666665  = Re100
+
+bc_jk_bfs2111_20 == bc_nas_bfs2111_20

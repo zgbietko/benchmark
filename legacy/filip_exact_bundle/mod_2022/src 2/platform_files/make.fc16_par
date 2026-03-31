@@ -1,0 +1,40 @@
+# C compiler
+#CC = icc
+CC = gcc
+
+# C++ compiler
+#CPPC = icpc
+CPPC = g++
+
+# Loader (to link with Fortran libraries)
+#LD = icpc
+LD = g++
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include
+
+# Standard and/or local libraries
+#LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -fopenmp -lpthread -lconfig 
+LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -fopenmp -lpthread -lconfig 
+
+# sequential version
+#-L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread
+
+
+# C optimization and other flags
+CFL =  -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -Wconversion -fopenmp
+#CFL = -O3 -fopenmp
+
+# Loader optimization and other flags
+LDFL = -g -fopenmp
+#LDFL = -O3 -fopenmp
+

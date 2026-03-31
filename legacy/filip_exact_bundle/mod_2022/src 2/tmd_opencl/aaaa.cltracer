@@ -1,0 +1,7 @@
+{
+    "projectName": "aaaa",
+    "projectDir": "/home/fkruzel/Kod/mod_2022/src/tmd_opencl",
+    "executable": "/home/fkruzel/Kod/mod_2022/bin/asusXe_laplace/MFEM_conv_diff_prism_std_krb_ocl",
+    "workingDir": "/home/fkruzel/Kod/mod_2022/bin/asusXe_laplace",
+    "execFlags": "."
+}

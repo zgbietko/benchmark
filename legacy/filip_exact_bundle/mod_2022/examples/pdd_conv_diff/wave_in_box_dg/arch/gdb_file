@@ -1,0 +1,2 @@
+run $PHP_FEM_DIR/examples/data_conv_x
+

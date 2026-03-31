@@ -1,0 +1,466 @@
+/************************************************************************
+File pdh_hmt_weakform.h - weakform implementation
+
+Contains definitions of inline routines:
+  pdr_comp_weakform_(...) - all routines that implement weakform lhs & rhs
+
+------------------------------
+History:
+	2011    - Przemyslaw Plaszewski (pplaszew@agh.edu.pl)
+*************************************************************************/
+
+#ifndef PDH_HMT_WEAKFORM_H
+#define PDH_HMT_WEAKFORM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*-----------------------------------------------------------------*/
+
+/*-----------------------------------------------------------------*/
+/*----------------------- N-S WEAK FORM ---------------------------*/
+/*---------------------------  LHS --------------------------------*/
+/*-----------------------------------------------------------------*/
+/*--------------------kept here for reference----------------------*/
+
+
+//          //terms involving u_n moved to RHS       
+//
+//          //(u_dt, v)
+//          refDensity * (u_x*v_x + u_y*v_y + u_z*v_z)/delta_t
+//          //MOVED TO RHS:
+//          //- 
+//          //refDensity * (un_x * v_x + un_y * v_y + un_z * v_z) / delta_t
+//
+//
+//          //+((grad*u)u, v)
+//          + refDensity * (
+//              v_x*(uk_x*u_xdx + uk_y*u_xdy + uk_z*u_xdz) + 
+//              v_y*(uk_x*u_ydx + uk_y*u_ydy + uk_z*u_ydz) +
+//              v_z*(uk_x*u_zdx + uk_y*u_zdy + uk_z*u_zdz)
+//          )
+//
+//          //+(2visc*e(u), e(v))
+//          +                          
+//          2.0*viscosity*(
+//          u_xdx*v_xdx + u_ydy*v_ydy + u_zdz*v_zdz +
+//          0.5*(u_ydx+u_xdy)*(v_ydx+v_xdy) +
+//          0.5*(u_zdx+u_xdz)*(v_zdx+v_xdz) +
+//          0.5*(u_zdy+u_ydz)*(v_zdy+v_ydz)
+//          )
+//
+//          //-(grad*v, p)
+//          -
+//          p*(v_xdx + v_ydy + v_zdz)
+//
+//          //-(grad*u, q)
+//          - 
+//          q*(u_xdx + u_ydy + u_zdz)
+//
+//
+//          //stabilization part: +(u_dt, res)
+//          +
+//          refDensity * (tau/delta_t)*(
+//          u_x* /*res*/(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx) +
+//          u_y* /*res*/(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy) + 
+//          u_z* /*res*/(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz)
+//          )
+//          //MOVED TO RHS:        
+//          //-
+//          //(tau / delta_t) * (
+//          //  un_x * /*res*/(uk_x * v_xdx + uk_y * v_xdy + uk_z * v_xdz - q_dx) +
+//          //  un_y * /*res*/(uk_x * v_ydx + uk_y * v_ydy + uk_z * v_ydz - q_dy) +
+//          //  un_z * /*res*/(uk_x * v_zdx + uk_y * v_zdy + uk_z * v_zdz - q_dz)
+//          //)
+//
+//
+//          //stabilization part: +((grad*u)u, res)
+//          +
+//          refDensity * tau*(
+//          (uk_x*u_xdx + uk_y*u_xdy + uk_z*u_xdz)* /*res*/(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx) + 
+//          (uk_x*u_ydx + uk_y*u_ydy + uk_z*u_ydz)* /*res*/(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy) +
+//          (uk_x*u_zdx + uk_y*u_zdy + uk_z*u_zdz)* /*res*/(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz)
+//          )
+//
+//          //stabilization part: +(grad*p, res)
+//          +
+//          tau*(
+//          p_dx* /*res*/(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx) +
+//          p_dy* /*res*/(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy) + 
+//          p_dz* /*res*/(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz)
+//          )
+//
+//
+//          //+(grad*u, sigma*grad*v)
+//          +
+//          sigma*(u_xdx + u_ydy + u_zdz)*(v_xdx + v_ydy + v_zdz)
+
+
+/*-----------------------------------------------------------------*/
+/*----------------------- N-S WEAK FORM ---------------------------*/
+/*---------------------------  RHS --------------------------------*/
+/*-----------------------------------------------------------------*/
+/*--------------------kept here for reference----------------------*/
+
+
+
+//        f_x * v_x + f_y * v_y + f_z * v_z     //+ h_x*v_x + h_y*v_y + h_z*v_z
+//        + 
+//        tau * (
+//          f_x * (uk_x * v_xdx + uk_y * v_xdy + uk_z * v_xdz - q_dx) +
+//          f_y * (uk_x * v_ydx + uk_y * v_ydy + uk_z * v_ydz - q_dy) +
+//          f_z * (uk_x * v_zdx + uk_y * v_zdy + uk_z * v_zdz - q_dz)
+//        )
+//
+//        //MOVED FROM LHS:
+//        + 
+//       refDensity * (un_x * v_x + un_y * v_y + un_z * v_z) / delta_t
+//
+//        +
+//        refDensity * (tau / delta_t) * (
+//          un_x * /*res*/(uk_x * v_xdx + uk_y * v_xdy + uk_z * v_xdz - q_dx) +
+//          un_y * /*res*/(uk_x * v_ydx + uk_y * v_ydy + uk_z * v_ydz - q_dy) +
+//          un_z * /*res*/(uk_x * v_zdx + uk_y * v_zdy + uk_z * v_zdz - q_dz)
+//        )
+
+/*-----------------------------------------------------------------*/
+
+//RHS Von Neumann
+//    return h_x * v_x + h_y * v_y + h_z * v_z;
+
+
+/**************************************/
+/* INTERNAL PROCEDURES                */
+/**************************************/
+/* Rules:
+/* - name always begins with pdr_ */
+/* - argument names start uppercase; EXCEPTION HERE: 
+below functions are small computational ones without variable definitions
+No need to distinguish arguments */
+
+//*******************  u_x
+/*
+All stabilized NS terms involving: u_x
+    (u_x*v_x)/delta_t
+    +v_x*(uk_x*u_xdx + uk_y*u_xdy + uk_z*u_xdz)
+    +2.0*viscosity*(u_xdx*v_xdx + 0.5*(u_xdy)*(v_ydx+v_xdy) + 0.5*(u_xdz)*(v_zdx+v_xdz))
+    -q*(u_xdx)
+    +(tau/delta_t)*(u_x*(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx))
+    +tau*((uk_x*u_xdx + uk_y*u_xdy + uk_z*u_xdz)*(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx))
+    +sigma*(u_xdx)*(v_xdx + v_ydy + v_zdz);
+  */
+
+  static inline double pdr_comp_weakform_lhs_uxvx(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_x v_x */
+    return (
+	     //Matrix (1): (u_dt, v) //note: terms involving u_n moved to RHS //Mass matrix
+	     ref_density * (shp * tst) / delta_t
+	     //Matrix (2): +((grad*u)u, v)  
+	     + ref_density * tst * (uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz)
+	     //Matrix (3): +(2visc*e(u), e(v))    
+	     + 2.0 * viscosity * (shp_dx * tst_dx + 0.5 * (shp_dy) * (tst_dy) + 0.5 * (shp_dz) * (tst_dz)
+	     )
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)    
+	     + sigma * (shp_dx) * (tst_dx)
+	);
+
+  } static inline double pdr_comp_weakform_lhs_uxvy(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_x v_y */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dy) * (tst_dx)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)  
+	     + sigma * (shp_dx) * (tst_dy)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uxvz(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_x v_z */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dz) * (tst_dx)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dx) * (tst_dz)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uxq(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_x q  */
+    return (
+	     //Matrix (5): -(grad*u, q)
+	     -tst * (shp_dx)
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS      
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (-tst_dx)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (-tst_dx)
+	     )
+	);
+  }
+
+
+//*******************  u_y
+/*
+All stabilized NS terms involving: u_y
+    (u_y*v_y)/delta_t
+    +v_y*(uk_x*u_ydx + uk_y*u_ydy + uk_z*u_ydz)
+    +2.0*viscosity*(u_ydy*v_ydy + 0.5*(u_ydx)*(v_ydx+v_xdy) + 0.5*(u_ydz)*(v_zdy+v_ydz))
+    -q*(u_ydy)
+    +(tau/delta_t)*(u_y*(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy))
+    +tau*((uk_x*u_ydx + uk_y*u_ydy + uk_z*u_ydz)*(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy))
+    +sigma*(u_ydy)*(v_xdx + v_ydy + v_zdz);
+  */
+
+
+
+  static inline double pdr_comp_weakform_lhs_uyvx(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_y v_x */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dx) * (tst_dy)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dy) * (tst_dx)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uyvy(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_y v_y */
+    return (
+	     //Matrix (1): (u_dt, v) //note: terms involving u_n moved to RHS //Mass matrix
+	     ref_density * (shp * tst) / delta_t
+	     //Matrix (2): +((grad*u)u, v)
+	     + ref_density * tst * (uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz)
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     + 2.0 * viscosity * (shp_dy * tst_dy + 0.5 * (shp_dx) * (tst_dx) + 0.5 * (shp_dz) * (tst_dz)
+	     )
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dy) * (tst_dy)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uyvz(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_y v_z */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dz) * (tst_dy)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dy) * (tst_dz));
+  }
+  static inline double pdr_comp_weakform_lhs_uyq(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_y q  */
+    return (
+	     //Matrix (5): -(grad*u, q)
+	     -tst * (shp_dy)
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (-tst_dy)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (-tst_dy)
+	     )
+	);
+  }
+
+
+
+//********************  u_z
+/*
+All stabilized NS terms involving: u_z
+    (u_z*v_z)/delta_t
+    +v_z*(uk_x*u_zdx + uk_y*u_zdy + uk_z*u_zdz)
+    +2.0*viscosity*(u_zdz*v_zdz + 0.5*(u_zdx)*(v_zdx+v_xdz) + 0.5*(u_zdy)*(v_zdy+v_ydz))
+    -q*(u_zdz)
+    +(tau/delta_t)*(u_z*(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz))
+    +tau*((uk_x*u_zdx + uk_y*u_zdy + uk_z*u_zdz)*(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz))
+    +sigma*(u_zdz)*(v_xdx + v_ydy + v_zdz);
+  */
+
+
+
+  static inline double pdr_comp_weakform_lhs_uzvx(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_z v_x */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dx) * (tst_dz)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dz) * (tst_dx)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uzvy(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_z v_y */
+    return (
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     2.0 * viscosity * (0.5 * (shp_dy) * (tst_dz)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)  
+	     + sigma * (shp_dz) * (tst_dy)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uzvz(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_z v_z */
+    return (
+	     //Matrix (1): (u_dt, v) //note: terms involving u_n moved to RHS //Mass matrix
+	     ref_density * (shp * tst) / delta_t
+	     //Matrix (2): +((grad*u)u, v)
+	     + ref_density * tst * (uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz)
+	     //Matrix (3): +(2visc*e(u), e(v))
+	     + 2.0 * viscosity * (shp_dz * tst_dz + 0.5 * (shp_dx) * (tst_dx) + 0.5 * (shp_dy) * (tst_dy)
+	     )
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	     //Matrix (8): +(grad*u, sigma*grad*v)
+	     + sigma * (shp_dz) * (tst_dz)
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_uzq(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*u_z q  */
+    return (
+	     //Matrix (5): -(grad*u, q)
+	     -tst * (shp_dz)
+	     //Matrix (6): stabilization part: +(u_dt, res) //note: terms involving u_n moved to RHS
+	     + ref_density * (tau_fluid / delta_t) * (shp * /*res */ (-tst_dz)
+	     )
+	     //Matrix (7): stabilization part: +((grad*u)u, res)  
+	     + ref_density * tau_fluid * ((uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ (-tst_dz)
+	     )
+	);
+  }
+
+
+//***********************  p
+/*
+All stabilized NS terms involving: p
+    -p*(v_xdx + v_ydy + v_zdz)
+    +tau*(
+    p_dx*(uk_x*v_xdx + uk_y*v_xdy + uk_z*v_xdz - q_dx) +
+    p_dy*(uk_x*v_ydx + uk_y*v_ydy + uk_z*v_ydz - q_dy) +
+    p_dz*(uk_x*v_zdx + uk_y*v_zdy + uk_z*v_zdz - q_dz)
+    )
+  */
+
+
+  static inline double pdr_comp_weakform_lhs_pvx(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*p v_x */
+    return (
+	     //Matrix (4): -(grad*v, p)
+	     -shp * (tst_dx)
+	     //Matrix (9): stabilization part: +(grad*p, res)
+	     + tau_fluid * (shp_dx * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_pvy(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*p v_y */
+    return (
+	     //Matrix (4): -(grad*v, p)
+	     -shp * (tst_dy)
+	     //Matrix (9): stabilization part: +(grad*p, res)
+	     + tau_fluid * (shp_dy * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_pvz(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*p v_z */
+    return (
+	     //Matrix (4): -(grad*v, p)
+	     -shp * (tst_dz)
+	     //Matrix (9): stabilization part: +(grad*p, res)
+	     + tau_fluid * (shp_dz * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	     )
+	);
+  }
+  static inline double pdr_comp_weakform_lhs_pq(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*p q  */
+    return (
+	     //Matrix (9): stabilization part: +(grad*p, res)
+	     tau_fluid * (shp_dx * (-tst_dx) + shp_dy * (-tst_dy) + shp_dz * (-tst_dz)
+	     )
+	);
+  }
+
+
+  static inline double pdr_comp_weakform_lhs_tw(double ref_density, double delta_t, double viscosity, double specific_heat, double tconductivity, double tau_fluid, double tau_therm, double sigma, double shp, double shp_dx, double shp_dy, double shp_dz, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z) {
+    /*T w  */
+    return ((shp / delta_t) * tst + (uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * tst +
+	    /* k/(ro*c) */ (tconductivity / (ref_density * specific_heat)) * (shp_dx * tst_dx + shp_dy * tst_dy + shp_dz * tst_dz)
+	    + (uk_x * shp_dx + uk_y * shp_dy + uk_z * shp_dz) * /*res */ tau_therm * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    + (shp / delta_t) * /*res */ tau_therm * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	);
+  }
+
+
+
+/*-----------------------------------------------------------------*/
+
+
+
+
+  static inline double pdr_comp_weakform_rhs_vx(double f_x, double f_y, double f_z, double ref_density, double delta_t, double tau_fluid, double tau_therm, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z, double un_x, double un_y, double un_z, double tk) {
+    //v_x
+    return (f_x * tst + tau_fluid * (f_x * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	    //MOVED FROM LHS:
+	    + ref_density * (un_x * tst) / delta_t + ref_density * (tau_fluid / delta_t) * (un_x * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	);
+  }
+  static inline double pdr_comp_weakform_rhs_vy(double f_x, double f_y, double f_z, double ref_density, double delta_t, double tau_fluid, double tau_therm, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z, double un_x, double un_y, double un_z, double tk) {
+    //v_y
+    return (f_y * tst + tau_fluid * (f_y * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	    //MOVED FROM LHS:
+	    + ref_density * (un_y * tst) / delta_t + ref_density * (tau_fluid / delta_t) * (un_y * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	);
+  }
+  static inline double pdr_comp_weakform_rhs_vz(double f_x, double f_y, double f_z, double ref_density, double delta_t, double tau_fluid, double tau_therm, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z, double un_x, double un_y, double un_z, double tk) {
+    //v_z
+    return (f_z * tst + tau_fluid * (f_z * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	    //MOVED FROM LHS:
+	    + ref_density * (un_z * tst) / delta_t + ref_density * (tau_fluid / delta_t) * (un_z * /*res */ (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	    )
+	);
+  }
+  static inline double pdr_comp_weakform_rhs_q(double f_x, double f_y, double f_z, double ref_density, double delta_t, double tau_fluid, double tau_therm, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z, double un_x, double un_y, double un_z, double tk) {
+    //q
+    return (tau_fluid * (f_x * (-tst_dx) + f_y * (-tst_dy) + f_z * (-tst_dz)
+	    )
+	    //MOVED FROM LHS:
+	    + ref_density * (tau_fluid / delta_t) * (un_x * /*res */ (-tst_dx) +
+						     un_y * /*res */ (-tst_dy) +
+						     un_z * /*res */ (-tst_dz)
+	    )
+	);
+  }
+  static inline double pdr_comp_weakform_rhs_w(double f_x, double f_y, double f_z, double ref_density, double delta_t, double tau_fluid, double tau_therm, double tst, double tst_dx, double tst_dy, double tst_dz, double uk_x, double uk_y, double uk_z, double un_x, double un_y, double un_z, double tk) {
+    //w
+    return (
+	     //Q + (Q is 0 when no heat being generated)
+	     //terms involving Tk MOVED FROM LHS 
+	     (tk / delta_t) * tst + (tk / delta_t) * /*res */ tau_therm * (uk_x * tst_dx + uk_y * tst_dy + uk_z * tst_dz)
+	);
+  }
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

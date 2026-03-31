@@ -1,0 +1,95 @@
+/* ------------------------------------------------------------ */
+/* IMPORTANT:                                                   */
+/*      - both, C and C++ style comments are supported          */
+/*      - ALWAYS use "." (dot) when entering numbers!           */
+/*        For ex. instead of 20, put 20.0                       */
+/*      - Use same unit system for all values!                  */
+/* ------------------------------------------------------------ */
+
+pressure_pins:
+(
+  {
+    node_coor = [0.0, 0.0, 0.0];
+    p = 0.0;
+  },
+  {
+    node_coor = [0.0, 0.0, 0.05];
+    p = 0.0;
+  }
+);
+
+velocity_pins:
+(
+  {
+    node_coor = [0.0, 1.0, 0.0];
+    v = [0.0, 0.0, 0.0];
+  },
+  {
+    node_coor = [0.0, 1.0, 0.05];
+    v = [0.0, 0.0, 0.0];
+  },
+  {
+    node_coor = [1.0, 1.0, 0.0];
+    v = [0.0, 0.0, 0.0];
+  },
+  {
+    node_coor = [1.0, 1.0, 0.05];
+    v = [0.0, 0.0, 0.0];
+  }
+);
+
+
+
+bc:
+(
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:1;
+    symmetry:{};
+  },
+
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:2;
+    symmetry:{};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:3;
+    noslip:{};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:4;
+    noslip:{};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  { 
+    bcnum:5;
+    noslip:{};
+  },
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:6; //top side
+    velocity:{
+      v = [1.0, 0.0, 0.0];
+    };
+  },
+
+ /*--- BOUNDARY ---*/
+  {
+    bcnum:9;
+    noslip:{};
+  }
+
+
+);
+
+

@@ -82,7 +82,7 @@ FILIP_CASE_DESCRIPTIONS: Dict[str, str] = {
 FILIP_MODE_CHOICES: List[str] = ["portable_sweep", "exact_reference"]
 FILIP_MODE_DESCRIPTIONS: Dict[str, str] = {
     "portable_sweep": "Current project benchmark path. Exhaustive constrained sweep on the portable FEM harness.",
-    "exact_reference": "Original Filip OpenCL path. Builds mod_2022 and runs the native 80-option reference campaign with native 'internal' timings.",
+    "exact_reference": "Original Filip OpenCL path. Rebuilds mod_2022, prepares the exact workspace, and runs the native 80-option reference campaign with native 'internal' timings.",
 }
 
 OPTIMIZATION_PLOT_PREFERENCE: List[str] = [
