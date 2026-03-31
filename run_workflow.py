@@ -406,21 +406,29 @@ def _filip_original_args(args: argparse.Namespace, backend: str) -> list[str]:
 
 
 def _filip_exact_args(args: argparse.Namespace) -> list[str]:
-    backend = str(args.backend).strip().lower()
-    if backend not in ("auto", "opencl", "intel"):
-        raise SystemExit("Filip exact reference mode supports only backend=opencl/intel/auto.")
+    backend_req = _resolve_fem_backend_token(args.backend, args.platform_profile, args.arch)
+    if backend_req not in ("metal", "opencl", "intel"):
+        raise SystemExit("Filip exact reference mode supports only backend=opencl/intel/metal/auto.")
     out = [
         "--backend",
-        "intel" if backend in ("auto", "intel") else "opencl",
+        "metal" if backend_req == "metal" else ("intel" if backend_req == "intel" else "opencl"),
         "--benchmark-case",
         args.filip_case,
         "--variants",
         "qss,sqs,ssq",
+        "--device-index",
+        str(args.device_index),
+        "--profile",
+        str(args.profile),
     ]
     if str(getattr(args, "filip_modfem_dir", "")).strip():
         out += ["--modfem-dir", str(args.filip_modfem_dir).strip()]
     if str(getattr(args, "filip_input_override", "")).strip():
         out += ["--input-override", str(args.filip_input_override).strip()]
+    if bool(getattr(args, "filip_dump_launch_artifacts", False)):
+        out += ["--dump-launch-artifacts"]
+    if str(getattr(args, "filip_replay_dump_root", "")).strip():
+        out += ["--replay-dump-root", str(args.filip_replay_dump_root).strip()]
     return out
 
 
@@ -759,7 +767,8 @@ def run_filip_autotune(args: argparse.Namespace) -> int:
 def run_filip_original(args: argparse.Namespace) -> int:
     before = _optimization_dirs()
     if str(args.filip_mode).strip().lower() == "exact_reference":
-        backend = "opencl"
+        backend_token = _resolve_fem_backend_token(args.backend, args.platform_profile, args.arch)
+        backend = "metal" if backend_token == "metal" else "opencl"
         run_rc = _run_py("run_filip_reference_exact.py", _filip_exact_args(args))
     else:
         backend = _resolve_fem_backend_token(args.backend, args.platform_profile, args.arch)
@@ -833,6 +842,8 @@ def main() -> None:
     ap.add_argument("--filip-mode", choices=["portable_sweep", "exact_reference"], default="portable_sweep")
     ap.add_argument("--filip-modfem-dir", default="")
     ap.add_argument("--filip-input-override", default="")
+    ap.add_argument("--filip-dump-launch-artifacts", action="store_true")
+    ap.add_argument("--filip-replay-dump-root", default="")
     args = ap.parse_args()
 
     if args.workflow == "cpu_benchmark":

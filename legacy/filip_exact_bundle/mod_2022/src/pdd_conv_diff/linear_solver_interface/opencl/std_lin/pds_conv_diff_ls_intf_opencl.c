@@ -20,6 +20,8 @@ History:
 #include<math.h>
 #include<assert.h>
 #include<limits.h>
+#include<sys/types.h>
+#include<sys/stat.h>
 
 #include<omp.h>
 
@@ -63,6 +65,141 @@ double t_begin;
 double t_end;
 double total_time;
 #endif
+
+static void pdr_write_binary_dump(const char* path, const void* data, size_t nbytes)
+{
+  FILE* f = fopen(path, "wb");
+  if(f == NULL){
+    return;
+  }
+  if(data != NULL && nbytes > 0){
+    fwrite(data, 1, nbytes, f);
+  }
+  fclose(f);
+}
+
+static void pdr_dump_launch_artifacts_if_requested(
+    const int* execution_parameters_host,
+    size_t execution_parameters_dev_bytes,
+    const SCALAR* gauss_dat_host,
+    size_t gauss_dat_dev_bytes,
+    const SCALAR* shape_fun_host,
+    size_t shape_fun_dev_bytes,
+    const SCALAR* el_data_in,
+    size_t el_data_in_bytes,
+    size_t el_data_out_bytes,
+    size_t nr_threads,
+    size_t work_group_size,
+    size_t nr_work_groups,
+    size_t nr_elems_per_kernel,
+    size_t nr_elems_this_kercall
+)
+{
+  const char* dump_dir = getenv("FILIP_EXACT_DUMP_DIR");
+  if(dump_dir == NULL || dump_dir[0] == '\0'){
+    return;
+  }
+
+  char meta_path[PATH_MAX];
+  char exec_path[PATH_MAX];
+  char gauss_path[PATH_MAX];
+  char shape_path[PATH_MAX];
+  char input_path[PATH_MAX];
+
+  snprintf(meta_path, sizeof(meta_path), "%s/launch_meta.json", dump_dir);
+  snprintf(exec_path, sizeof(exec_path), "%s/execution_parameters.bin", dump_dir);
+  snprintf(gauss_path, sizeof(gauss_path), "%s/gauss_dat.bin", dump_dir);
+  snprintf(shape_path, sizeof(shape_path), "%s/shape_fun_ref.bin", dump_dir);
+  snprintf(input_path, sizeof(input_path), "%s/el_data_in.bin", dump_dir);
+
+  pdr_write_binary_dump(exec_path, execution_parameters_host, execution_parameters_dev_bytes);
+  pdr_write_binary_dump(gauss_path, gauss_dat_host, gauss_dat_dev_bytes);
+  pdr_write_binary_dump(shape_path, shape_fun_host, shape_fun_dev_bytes);
+  pdr_write_binary_dump(input_path, el_data_in, el_data_in_bytes);
+
+  {
+    FILE* meta = fopen(meta_path, "w");
+    if(meta != NULL){
+      const char* case_name = getenv("FILIP_EXACT_CASE");
+      const char* variant = getenv("FILIP_EXACT_VARIANT");
+      const char* option_index = getenv("FILIP_EXACT_OPTION_INDEX");
+      fprintf(meta, "{\n");
+      fprintf(meta, "  \"scalar_type\": \"float32\",\n");
+      fprintf(meta, "  \"case\": \"%s\",\n", case_name ? case_name : "");
+      fprintf(meta, "  \"variant\": \"%s\",\n", variant ? variant : "");
+      fprintf(meta, "  \"option_index\": %d,\n", option_index ? atoi(option_index) : -1);
+#ifdef LAPLACE
+      fprintf(meta, "  \"problem_macro\": \"LAPLACE\",\n");
+#elif defined(TEST_SCALAR)
+      fprintf(meta, "  \"problem_macro\": \"TEST_SCALAR\",\n");
+#else
+      fprintf(meta, "  \"problem_macro\": \"GENERIC\",\n");
+#endif
+      fprintf(meta, "  \"execution_parameters_count\": %d,\n", (int)(execution_parameters_dev_bytes / sizeof(int)));
+      fprintf(meta, "  \"gauss_dat_count\": %d,\n", (int)(gauss_dat_dev_bytes / sizeof(SCALAR)));
+      fprintf(meta, "  \"shape_fun_count\": %d,\n", (int)(shape_fun_dev_bytes / sizeof(SCALAR)));
+      fprintf(meta, "  \"el_data_in_count\": %d,\n", (int)(el_data_in_bytes / sizeof(SCALAR)));
+      fprintf(meta, "  \"el_data_out_count\": %d,\n", (int)(el_data_out_bytes / sizeof(SCALAR)));
+      fprintf(meta, "  \"nr_threads\": %d,\n", (int)nr_threads);
+      fprintf(meta, "  \"work_group_size\": %d,\n", (int)work_group_size);
+      fprintf(meta, "  \"nr_work_groups\": %d,\n", (int)nr_work_groups);
+      fprintf(meta, "  \"nr_elems_per_kernel\": %d,\n", (int)nr_elems_per_kernel);
+      fprintf(meta, "  \"nr_elems_this_kercall\": %d,\n", (int)nr_elems_this_kercall);
+      fprintf(meta, "  \"el_data_in_bytes\": %d,\n", (int)el_data_in_bytes);
+      fprintf(meta, "  \"el_data_out_bytes\": %d\n", (int)el_data_out_bytes);
+      fprintf(meta, "}\n");
+      fclose(meta);
+    }
+  }
+}
+
+static void pdr_dump_output_artifacts_if_requested(
+    const SCALAR* el_data_out,
+    size_t el_data_out_bytes
+)
+{
+  const char* dump_dir = getenv("FILIP_EXACT_DUMP_DIR");
+  const char* result_dir = getenv("FILIP_EXACT_RESULT_DIR");
+
+  if((dump_dir == NULL || dump_dir[0] == '\0')
+      && (result_dir == NULL || result_dir[0] == '\0')){
+    return;
+  }
+
+  if(result_dir != NULL && result_dir[0] != '\0'){
+    char output_path[PATH_MAX];
+    char meta_path[PATH_MAX];
+    snprintf(output_path, sizeof(output_path), "%s/el_data_out.bin", result_dir);
+    snprintf(meta_path, sizeof(meta_path), "%s/output_meta.json", result_dir);
+    pdr_write_binary_dump(output_path, el_data_out, el_data_out_bytes);
+    {
+      FILE* meta = fopen(meta_path, "w");
+      if(meta != NULL){
+        const char* case_name = getenv("FILIP_EXACT_CASE");
+        const char* variant = getenv("FILIP_EXACT_VARIANT");
+        const char* option_index = getenv("FILIP_EXACT_OPTION_INDEX");
+        fprintf(meta, "{\n");
+        fprintf(meta, "  \"scalar_type\": \"float32\",\n");
+        fprintf(meta, "  \"case\": \"%s\",\n", case_name ? case_name : "");
+        fprintf(meta, "  \"variant\": \"%s\",\n", variant ? variant : "");
+        fprintf(meta, "  \"option_index\": %d,\n", option_index ? atoi(option_index) : -1);
+        fprintf(meta, "  \"el_data_out_count\": %d,\n", (int)(el_data_out_bytes / sizeof(SCALAR)));
+        fprintf(meta, "  \"el_data_out_bytes\": %d\n", (int)el_data_out_bytes);
+        fprintf(meta, "}\n");
+        fclose(meta);
+      }
+    }
+  }
+
+  if(
+      dump_dir != NULL && dump_dir[0] != '\0'
+      && (result_dir == NULL || result_dir[0] == '\0' || strcmp(dump_dir, result_dir) != 0)
+    ){
+    char output_path[PATH_MAX];
+    snprintf(output_path, sizeof(output_path), "%s/el_data_out.bin", dump_dir);
+    pdr_write_binary_dump(output_path, el_data_out, el_data_out_bytes);
+  }
+}
 
 
 // Master switch: GPU versus PHI - may be controlled by compilation options !!!!!
@@ -1301,11 +1438,12 @@ int pdr_create_assemble_stiff_mat_opencl_elem(
 
       // !!!!!!!!!!!!!!!***************!!!!!!!!!!!!!!!!!
       // fill and send buffers with integration data when necessary
+      #define MAX_SIZE_ARRAY_GAUSS 1344
+      SCALAR gauss_dat_host[MAX_SIZE_ARRAY_GAUSS];
+      memset(gauss_dat_host, 0, sizeof(gauss_dat_host));
       if(gauss_dat_dev_bytes != 0){
 	
-#define MAX_SIZE_ARRAY_GAUSS 1344
 	// 1344 - maximal value of arrGaussSize (for p=707), (for 909 is 2920)
-	SCALAR gauss_dat_host[MAX_SIZE_ARRAY_GAUSS];
 // This is the version when we send only necessary variables but we do not care about sending
 	if(num_dofs==4)
 	{
@@ -1350,13 +1488,14 @@ int pdr_create_assemble_stiff_mat_opencl_elem(
       double base_dphix_ref[APC_MAXELVD];  /* x-derivatives of basis function */
       double base_dphiy_ref[APC_MAXELVD];  /* y-derivatives of basis function */
       double base_dphiz_ref[APC_MAXELVD];  /* z-derivatives of basis function */
+      SCALAR *shape_fun_host = NULL;
       
       // !!!!!!!!!!!!!!!***************!!!!!!!!!!!!!!!!!
       // fill and send buffers with shape function values for the reference element
       if(shape_fun_dev_bytes != 0){
 	
 	int shape_fun_host_bytes = shape_fun_dev_bytes;
-	SCALAR *shape_fun_host = (SCALAR*)malloc(shape_fun_host_bytes);
+	shape_fun_host = (SCALAR*)malloc(shape_fun_host_bytes);
 	
 	
 	// we need all shape functions and their derivatives
@@ -1401,8 +1540,6 @@ int pdr_create_assemble_stiff_mat_opencl_elem(
 	// send data to device - CL_TRUE i.e. blocking to free shape_fun_host
 	clEnqueueWriteBuffer(command_queue, shape_fun_dev, CL_TRUE, 0,
 			     shape_fun_dev_bytes, shape_fun_host, 0, NULL, NULL);
-	
-	free(shape_fun_host);
     
       }
       
@@ -1900,6 +2037,27 @@ int pdr_create_assemble_stiff_mat_opencl_elem(
       total_time += t_end-t_begin; 
       t_begin = time_clock();
 #endif
+
+      pdr_dump_launch_artifacts_if_requested(
+          execution_parameters_host,
+          execution_parameters_dev_bytes,
+          gauss_dat_host,
+          gauss_dat_dev_bytes,
+          shape_fun_host,
+          shape_fun_dev_bytes,
+          el_data_in,
+          el_data_in_bytes,
+          el_data_out_bytes,
+          nr_threads,
+          work_group_size,
+          nr_work_groups,
+          nr_elems_per_kernel,
+          nr_elems_this_kercall
+      );
+      if(shape_fun_host != NULL){
+        free(shape_fun_host);
+        shape_fun_host = NULL;
+      }
       
       // FINALLY EXECUTE THE KERNEL
       // set kernel invocation parameters 
@@ -2077,6 +2235,8 @@ int pdr_create_assemble_stiff_mat_opencl_elem(
     total_time += t_end-t_begin; 
       t_begin = time_clock();
 #endif
+
+      pdr_dump_output_artifacts_if_requested(el_data_out, el_data_out_bytes);
 
 #ifdef TUNING
 	#ifdef COUNT_OPER

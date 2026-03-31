@@ -9,12 +9,15 @@ import json
 import math
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import subprocess
 import sys
 from typing import Any, Iterable
 import zipfile
+
+import numpy as np
 
 
 ROOT = Path(__file__).resolve().parent
@@ -32,6 +35,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # type: ignore
+
+from analysis.filip_article_plots import _estimate_rw_bytes, _estimate_share, _roofline_peaks_for_backend
+from device_resolution import resolve_device_index
+from optimization.problems import FemParametricProblem, FemParametricProblemConfig
 
 
 VARIANT_ORDER = ["qss", "sqs", "ssq"]
@@ -64,6 +71,12 @@ RESULT_FIELD_ORDER = [
     "output_bandwidth_[GB/s]",
 ]
 PLOT_COLOR = {"qss": "#111111", "sqs": "#b8bcc2", "ssq": "#6b7280"}
+PROFILE_SCALE = {"quick": 0.5, "paper": 1.0, "full": 1.5}
+BASE_ELEMENTS = {
+    "cpu": {"tet4": 12_000, "hex8": 6_000, "prism6": 9_000},
+    "native_gpu": {"tet4": 64_000, "hex8": 24_000, "prism6": 48_000},
+    "mapped_gpu": {"tet4": 32_000, "hex8": 12_000, "prism6": 24_000},
+}
 
 
 @dataclass(frozen=True)
@@ -103,6 +116,25 @@ CASE_SPECS: dict[str, tuple[ExactCaseSpec, ...]] = {
     ),
 }
 CASE_SPECS["prism_pair"] = (*CASE_SPECS["laplace_prism"], *CASE_SPECS["test_prism"])
+
+
+def _resolve_exact_backend(requested: str) -> str:
+    backend = str(requested).strip().lower()
+    if backend == "metal":
+        return "metal"
+    if backend in {"opencl", "intel"}:
+        return "opencl"
+    if backend == "auto":
+        if platform.system() == "Darwin":
+            try:
+                import Metal  # type: ignore
+
+                if Metal.MTLCreateSystemDefaultDevice() is not None:
+                    return "metal"
+            except Exception:
+                pass
+        return "opencl"
+    raise SystemExit("Exact Filip reference mode supports only backend=opencl/intel/metal/auto.")
 
 
 def _dedupe_paths(values: Iterable[str]) -> list[str]:
@@ -225,9 +257,9 @@ def _parse_csv_list(raw: str) -> list[str]:
     return [item.strip().lower() for item in str(raw).split(",") if item.strip()]
 
 
-def _make_out_dir() -> Path:
+def _make_out_dir(backend: str) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    out = ROOT / "data" / "optimization" / f"{ts}__filip_original__backend-opencl__exact"
+    out = ROOT / "data" / "optimization" / f"{ts}__filip_original__backend-{backend}__exact"
     out.mkdir(parents=True, exist_ok=True)
     return out
 
@@ -251,6 +283,148 @@ def _require_path(path: Path, description: str) -> Path:
 def _kernel_src(mod_dir: Path, variant: str) -> Path:
     name = f"apr_ocl_num_int_el_reference_prism_{variant.upper()}.cl"
     return _require_path(mod_dir / "src" / "OpenCL_kernels" / name, f"kernel source {name}")
+
+
+def _case_name_from_record(record: dict[str, Any]) -> str:
+    case_key = str(record.get("case_key", "")).strip().lower()
+    if case_key == "prism6__laplace":
+        return "laplace_prism"
+    if case_key == "prism6__test":
+        return "test_prism"
+    return case_key or "unknown_case"
+
+
+def _option_output_dir(root: Path, *, case_name: str, variant: str, option_index: int) -> Path:
+    return root / case_name / variant / f"opt_{int(option_index):03d}"
+
+
+def _array_preview(arr: np.ndarray, *, max_values: int = 8) -> dict[str, Any]:
+    flat = np.ascontiguousarray(arr, dtype=np.float32).reshape(-1)
+    if flat.size == 0:
+        return {
+            "count": 0,
+            "bytes": 0,
+            "min": 0.0,
+            "max": 0.0,
+            "mean": 0.0,
+            "std": 0.0,
+            "l2_norm": 0.0,
+            "nonzero_count": 0,
+            "first_values": [],
+        }
+    return {
+        "count": int(flat.size),
+        "bytes": int(flat.nbytes),
+        "min": float(flat.min()),
+        "max": float(flat.max()),
+        "mean": float(flat.mean()),
+        "std": float(flat.std()),
+        "l2_norm": float(np.linalg.norm(flat)),
+        "nonzero_count": int(np.count_nonzero(flat)),
+        "first_values": [float(v) for v in flat[:max_values].tolist()],
+    }
+
+
+def _write_output_preview(
+    *,
+    output_dir: Path,
+    backend: str,
+    case_name: str,
+    variant: str,
+    option_index: int,
+    option_row: list[int],
+    arr: np.ndarray,
+    output_path: Path,
+    validation: dict[str, Any] | None = None,
+    source_dump_dir: Path | None = None,
+    translated_source_path: str = "",
+) -> dict[str, Any]:
+    preview = {
+        "backend": str(backend),
+        "case": str(case_name),
+        "variant": str(variant),
+        "option_index": int(option_index),
+        "option_row": list(option_row),
+        "combo_bits": "".join("1" if int(v) else "0" for v in option_row),
+        "scalar_type": "float32",
+        "output_path": str(output_path),
+        **_array_preview(arr),
+    }
+    if validation is not None:
+        preview["validation"] = dict(validation)
+    if source_dump_dir is not None:
+        preview["source_dump_dir"] = str(source_dump_dir)
+    if translated_source_path:
+        preview["translated_source_path"] = str(translated_source_path)
+    preview_path = output_dir / "output_preview.json"
+    preview_path.write_text(json.dumps(preview, indent=2, ensure_ascii=True), encoding="utf-8")
+    validation_path = ""
+    if validation is not None:
+        validation_path = str(output_dir / "validation.json")
+        Path(validation_path).write_text(json.dumps(validation, indent=2, ensure_ascii=True), encoding="utf-8")
+    return {
+        "output_dir": str(output_dir),
+        "output_path": str(output_path),
+        "preview_path": str(preview_path),
+        "validation_path": validation_path,
+        "count": int(preview["count"]),
+    }
+
+
+def _save_output_artifacts_from_array(
+    *,
+    output_dir: Path,
+    backend: str,
+    case_name: str,
+    variant: str,
+    option_index: int,
+    option_row: list[int],
+    arr: np.ndarray,
+    validation: dict[str, Any] | None = None,
+    source_dump_dir: Path | None = None,
+    translated_source_path: str = "",
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    flat = np.ascontiguousarray(arr, dtype=np.float32).reshape(-1)
+    output_path = output_dir / "el_data_out.bin"
+    output_path.write_bytes(flat.tobytes())
+    return _write_output_preview(
+        output_dir=output_dir,
+        backend=backend,
+        case_name=case_name,
+        variant=variant,
+        option_index=option_index,
+        option_row=option_row,
+        arr=flat,
+        output_path=output_path,
+        validation=validation,
+        source_dump_dir=source_dump_dir,
+        translated_source_path=translated_source_path,
+    )
+
+
+def _save_output_artifacts_from_file(
+    *,
+    output_dir: Path,
+    backend: str,
+    case_name: str,
+    variant: str,
+    option_index: int,
+    option_row: list[int],
+    output_path: Path,
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    arr = np.frombuffer(output_path.read_bytes(), dtype=np.float32).copy()
+    return _write_output_preview(
+        output_dir=output_dir,
+        backend=backend,
+        case_name=case_name,
+        variant=variant,
+        option_index=option_index,
+        option_row=option_row,
+        arr=arr,
+        output_path=output_path,
+    )
 
 
 def _detect_device_label(preferred_vendor: str = "intel") -> str:
@@ -278,6 +452,44 @@ def _detect_device_label(preferred_vendor: str = "intel") -> str:
         if preferred and preferred in name.lower():
             return name
     return device_names[0]
+
+
+def _filip_option_rows() -> list[list[int]]:
+    k = 9
+    w = [0] * (k + 1)
+    step = [1] * (k + 1)
+    rows: list[list[int]] = []
+    m = 0
+    while True:
+        rows.append([w[idx] for idx in range(1, k + 1)])
+        m += 1
+        idx = 1
+        mm = m
+        while mm % 2 == 0:
+            idx += 1
+            mm //= 2
+        if idx > k:
+            break
+        w[idx] += step[idx]
+        if w[idx] == 0:
+            step[idx] = 1
+        if w[idx] == 1:
+            step[idx] = -1
+
+    filtered: list[list[int]] = []
+    for row in rows:
+        if (
+            not (row[3] and row[4])
+            and not (row[3] and row[5])
+            and not (row[3] and row[6])
+            and not (row[4] and row[5])
+            and not (row[4] and row[6])
+            and not (row[5] and row[6])
+            and not (row[7] and row[8])
+            and not ((row[7] == 0) and (row[8] == 0))
+        ):
+            filtered.append(row)
+    return filtered
 
 
 def _detect_csh_shell() -> str:
@@ -566,12 +778,198 @@ def _result_line_to_payload(*, case: ExactCaseSpec, variant: str, option_index: 
     }
 
 
+def _portable_mode_bucket(problem: FemParametricProblem) -> str:
+    if problem.mode.resolved_backend == "cpu":
+        return "cpu"
+    if problem.mode.execution_mode == "native":
+        return "native_gpu"
+    return "mapped_gpu"
+
+
+def _portable_suggest_workgroup(problem: FemParametricProblem, requested: int) -> int:
+    supported = list(problem.mode.profile.supported_workgroup_sizes)
+    if problem.mode.resolved_backend == "cpu":
+        return 1
+    if requested > 0:
+        if requested in supported:
+            return requested
+        if supported:
+            return min(supported, key=lambda value: abs(value - requested))
+        return requested
+    for preferred in (64, 32, 128, 256):
+        if preferred in supported:
+            return preferred
+    if supported:
+        return supported[0]
+    return 64
+
+
+def _portable_auto_n_elements(
+    *,
+    problem: FemParametricProblem,
+    profile: str,
+    element_type: str,
+    operator: str,
+    dtype: str,
+    n_qp: int,
+    workgroup_size: int,
+) -> int:
+    bucket = _portable_mode_bucket(problem)
+    scale = PROFILE_SCALE.get(profile, 1.0)
+    desired = int(BASE_ELEMENTS[bucket][element_type] * scale)
+    if dtype == "float64":
+        desired = max(1, desired // 2)
+
+    probe_budget = int(problem.mode.profile.memory_budget_bytes * (0.72 if bucket == "cpu" else 0.58))
+    probe_budget = max(64 * 1024 * 1024, probe_budget)
+
+    def estimate(n_elements: int) -> int:
+        cfg = {
+            "n_elements": int(n_elements),
+            "n_qp": int(n_qp),
+            "element_type": str(element_type),
+            "operator": str(operator),
+            "dtype": str(dtype),
+            "algorithm_variant": "ssq",
+            "workgroup_size": int(workgroup_size),
+            "use_workspace_for_pde_coeff": 1,
+            "use_workspace_for_geo_data": 1,
+            "use_workspace_for_shape_fun": 1,
+            "use_workspace_for_stiff_mat": 1,
+            "padding": 1,
+            "compute_all_shape_fun_der": 1,
+            "coal_read": 1,
+            "coal_write": 1,
+        }
+        return int(problem._estimate_candidate_memory_bytes(cfg))
+
+    low = 1
+    high = max(1, desired)
+    if estimate(high) <= probe_budget:
+        return high
+
+    best = low
+    while low <= high:
+        mid = (low + high) // 2
+        if estimate(mid) <= probe_budget:
+            best = mid
+            low = mid + 1
+        else:
+            high = mid - 1
+    floor = 2_000 if bucket == "cpu" else 8_000
+    return max(floor, best)
+
+
+def _portable_plot_row(record: dict[str, Any], backend: str, device: str) -> dict[str, Any]:
+    return {
+        "backend": backend,
+        "device": device,
+        "config": dict(record["config"]),
+        "metrics": dict(record["metrics"]),
+        "status": str(record["status"]),
+        "constraints_ok": bool(record["constraints_ok"]),
+        "operator": str(record["config"].get("operator", "")),
+        "variant": str(record["variant"]),
+    }
+
+
+def _portable_phase_metrics(record: dict[str, Any], peak_gflops: float, peak_bw: float) -> dict[str, float]:
+    elapsed = _safe_float(record["metrics"].get("elapsed_s_mean"))
+    row = _portable_plot_row(record, backend=str(record["backend"]), device=str(record["device"]))
+    read_share, compute_share, write_share = _estimate_share(row, peak_gflops, peak_bw)
+    read_t = elapsed * max(0.0, read_share) / 100.0
+    compute_t = elapsed * max(0.0, compute_share) / 100.0
+    write_t = elapsed * max(0.0, write_share) / 100.0
+    read_bytes, write_bytes = _estimate_rw_bytes(row)
+    read_bw = read_bytes / max(read_t, 1e-12) / 1e9 if read_t > 0.0 else float("inf")
+    write_bw = write_bytes / max(write_t, 1e-12) / 1e9 if write_t > 0.0 else float("inf")
+    return {
+        "el_data_in_mb": read_bytes / 1e6,
+        "el_data_out_mb": write_bytes / 1e6,
+        "input_time_s": read_t,
+        "input_bw_gbps": read_bw,
+        "kernel_time_s": elapsed,
+        "internal_time_s": compute_t,
+        "output_time_s": write_t,
+        "output_bw_gbps": write_bw,
+    }
+
+
+def _portable_record_to_payload(
+    *,
+    case: ExactCaseSpec,
+    backend: str,
+    device_label: str,
+    record: dict[str, Any],
+    peak_gflops: float,
+    peak_bw: float,
+) -> dict[str, Any]:
+    cfg = dict(record["config"])
+    metrics = dict(record["metrics"])
+    phase = _portable_phase_metrics(record, peak_gflops, peak_bw)
+    n_elements = max(1.0, _safe_float(metrics.get("n_elements")))
+    n_qp = max(1.0, _safe_float(metrics.get("n_qp_effective")) or float(case.n_qp))
+    wg = max(1, _safe_int(cfg.get("workgroup_size"), 64))
+    n_work_groups = max(1, int(math.ceil(n_elements / max(float(wg), 1.0))))
+    n_threads = n_work_groups * wg
+    ns_per_unit = _safe_float(record["ns_per_unit"])
+    internal_time_s = _safe_float(phase["internal_time_s"])
+    internal_ns_per_elem = internal_time_s * 1e9 / n_elements if math.isfinite(internal_time_s) else float("nan")
+    return {
+        "case_key": record["case_key"],
+        "config": {
+            "operator": cfg["operator"],
+            "element_type": cfg["element_type"],
+            "algorithm_variant": record["variant"],
+            "n_elements": int(round(n_elements)),
+            "n_qp": int(round(n_qp)),
+            "workgroup_size": wg,
+            "coal_read": int(cfg["coal_read"]),
+            "coal_write": int(cfg["coal_write"]),
+            "compute_all_shape_fun_der": int(cfg["compute_all_shape_fun_der"]),
+            "use_workspace_for_pde_coeff": int(cfg["use_workspace_for_pde_coeff"]),
+            "use_workspace_for_geo_data": int(cfg["use_workspace_for_geo_data"]),
+            "use_workspace_for_shape_fun": int(cfg["use_workspace_for_shape_fun"]),
+            "use_workspace_for_stiff_mat": int(cfg["use_workspace_for_stiff_mat"]),
+            "padding": int(cfg["padding"]),
+        },
+        "metrics": metrics,
+        "raw_phase": {
+            "el_data_in_mb": _safe_float(phase["el_data_in_mb"]),
+            "el_data_out_mb": _safe_float(phase["el_data_out_mb"]),
+            "nr_elems_per_work_group": wg,
+            "nr_elems": int(round(n_elements)),
+            "nr_elems_per_thread": 1,
+            "nr_work_groups": n_work_groups,
+            "work_group_size": wg,
+            "nr_threads": n_threads,
+            "input_time_s": _safe_float(phase["input_time_s"]),
+            "input_bw_gbps": _safe_float(phase["input_bw_gbps"]),
+            "kernel_time_s": _safe_float(phase["kernel_time_s"]),
+            "internal_time_s": internal_time_s,
+            "output_time_s": _safe_float(phase["output_time_s"]),
+            "output_bw_gbps": _safe_float(phase["output_bw_gbps"]),
+            "internal_ns_per_elem": internal_ns_per_elem,
+            "kernel_ns_per_unit": ns_per_unit,
+        },
+        "variant": record["variant"],
+        "option_index": int(record["option_index"]),
+        "option_row": list(record["option_row"]),
+        "combo_bits": "".join("1" if int(v) else "0" for v in record["option_row"]),
+        "status": str(record["status"]),
+        "constraints_ok": bool(record["constraints_ok"]),
+        "ns_per_unit": ns_per_unit,
+        "backend": backend,
+        "device": device_label,
+    }
+
+
 def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(payload, ensure_ascii=True) + "\n")
 
 
-def _write_current_combined_csv(path: Path, records: list[dict[str, Any]], *, device_label: str) -> None:
+def _write_current_combined_csv(path: Path, records: list[dict[str, Any]], *, backend: str, device_label: str) -> None:
     header = [
         "backend",
         "device",
@@ -606,7 +1004,7 @@ def _write_current_combined_csv(path: Path, records: list[dict[str, Any]], *, de
             phase = record["raw_phase"]
             writer.writerow(
                 [
-                    "opencl",
+                    backend,
                     device_label,
                     record["case_key"],
                     record["variant"],
@@ -632,6 +1030,47 @@ def _write_current_combined_csv(path: Path, records: list[dict[str, Any]], *, de
                     phase["internal_ns_per_elem"],
                 ]
             )
+
+
+def _write_exact_case_csvs(out_dir: Path, records: list[dict[str, Any]], *, backend: str) -> list[str]:
+    csv_dir = out_dir / "csv"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    generated: list[str] = []
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for record in records:
+        case_name = "laplace_prism" if record["case_key"] == "prism6__laplace" else "test_prism"
+        key = (case_name, str(record["variant"]))
+        grouped.setdefault(key, []).append(record)
+
+    for (case_name, variant), group in grouped.items():
+        ordered = sorted(group, key=lambda row: int(row["option_index"]))
+        path = csv_dir / f"result__{case_name}__{variant.upper()}__{backend}.csv"
+        with path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(RESULT_FIELD_ORDER)
+            for record in ordered:
+                phase = record["raw_phase"]
+                writer.writerow(
+                    [
+                        *record["option_row"],
+                        phase["el_data_in_mb"],
+                        phase["el_data_out_mb"],
+                        phase["nr_elems_per_work_group"],
+                        phase["nr_elems"],
+                        phase["nr_elems_per_thread"],
+                        phase["nr_work_groups"],
+                        phase["work_group_size"],
+                        phase["nr_threads"],
+                        phase["input_time_s"],
+                        phase["input_bw_gbps"],
+                        phase["kernel_time_s"],
+                        phase["internal_time_s"],
+                        phase["output_time_s"],
+                        phase["output_bw_gbps"],
+                    ]
+                )
+        generated.append(str(path))
+    return generated
 
 
 def _plot_setup() -> None:
@@ -802,6 +1241,66 @@ def _best_overall_payload(records: list[dict[str, Any]]) -> dict[str, Any] | Non
     }
 
 
+def _validation_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    validations = [
+        dict(record.get("raw_phase", {}).get("validation", {}))
+        for record in records
+        if isinstance(record.get("raw_phase", {}).get("validation"), dict)
+    ]
+    if not validations:
+        return {}
+    checked = [v for v in validations if v.get("within_tolerance") is not None]
+    max_abs_vals = [float(v["max_abs_diff"]) for v in checked if v.get("max_abs_diff") is not None]
+    rms_vals = [float(v["rms_diff"]) for v in checked if v.get("rms_diff") is not None]
+    return {
+        "records_with_validation": len(validations),
+        "records_checked": len(checked),
+        "records_with_expected_output": sum(1 for v in validations if bool(v.get("expected_output_present"))),
+        "records_within_tolerance": sum(1 for v in checked if bool(v.get("within_tolerance"))),
+        "records_out_of_tolerance": sum(1 for v in checked if v.get("within_tolerance") is False),
+        "worst_max_abs_diff": max(max_abs_vals) if max_abs_vals else None,
+        "worst_rms_diff": max(rms_vals) if rms_vals else None,
+    }
+
+
+def _exact_numerical_output_summary(
+    *,
+    records: list[dict[str, Any]],
+    root: Path | None,
+    best_overall: dict[str, Any] | None,
+    note: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "available": bool(root is not None),
+        "note": str(note),
+        "root": str(root) if root is not None else "",
+        "records_with_output": 0,
+    }
+    output_rows = [record for record in records if isinstance(record.get("numerical_output"), dict)]
+    payload["records_with_output"] = len(output_rows)
+    if root is None or not output_rows:
+        return payload
+    payload["example_output_dir"] = str(output_rows[0]["numerical_output"].get("output_dir", ""))
+    payload["example_output_preview"] = str(output_rows[0]["numerical_output"].get("preview_path", ""))
+    if best_overall is None:
+        return payload
+    best_case_key = str(best_overall.get("case_key", ""))
+    best_variant = str(best_overall.get("variant", ""))
+    best_option_index = int(best_overall.get("option_index", -1))
+    for record in output_rows:
+        if (
+            str(record.get("case_key", "")) == best_case_key
+            and str(record.get("variant", "")) == best_variant
+            and int(record.get("option_index", -1)) == best_option_index
+        ):
+            payload["best_output_dir"] = str(record["numerical_output"].get("output_dir", ""))
+            payload["best_output_path"] = str(record["numerical_output"].get("output_path", ""))
+            payload["best_output_preview"] = str(record["numerical_output"].get("preview_path", ""))
+            payload["best_output_validation_path"] = str(record["numerical_output"].get("validation_path", ""))
+            break
+    return payload
+
+
 def _run_case(
     *,
     mod_dir: Path,
@@ -816,6 +1315,8 @@ def _run_case(
     global_eval_start: int,
     total_evals: int,
     device_label: str,
+    numerical_outputs_root: Path,
+    dump_launch_root: Path | None,
 ) -> tuple[list[dict[str, Any]], int]:
     env = _augment_exact_env(os.environ.copy())
     env["MOD_FEM_DIR"] = str(mod_dir)
@@ -853,7 +1354,74 @@ def _run_case(
                 f"[exact] {eval_counter}/{total_evals} case={case.case_name} variant={variant} option={option_index + 1}/{len(option_rows)}",
                 flush=True,
             )
-            _run_binary_once(binary=binary, work_dir=work_dir, env=env, log_path=variant_log)
+            run_env = dict(env)
+            dump_dir: Path | None = None
+            result_dir = _option_output_dir(
+                dump_launch_root if dump_launch_root is not None else numerical_outputs_root,
+                case_name=case.case_name,
+                variant=variant,
+                option_index=option_index,
+            )
+            if result_dir.exists() and dump_launch_root is None:
+                shutil.rmtree(result_dir)
+            result_dir.mkdir(parents=True, exist_ok=True)
+            run_env["FILIP_EXACT_RESULT_DIR"] = str(result_dir)
+            run_env["FILIP_EXACT_CASE"] = case.case_name
+            run_env["FILIP_EXACT_VARIANT"] = variant
+            run_env["FILIP_EXACT_OPTION_INDEX"] = str(option_index)
+            if dump_launch_root is not None:
+                dump_dir = dump_launch_root / case.case_name / variant / f"opt_{option_index:03d}"
+                if dump_dir.exists():
+                    shutil.rmtree(dump_dir)
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                run_env["FILIP_EXACT_DUMP_DIR"] = str(dump_dir)
+                (dump_dir / "requested_option.json").write_text(
+                    json.dumps(
+                        {
+                            "case": case.case_name,
+                            "variant": variant,
+                            "option_index": option_index,
+                            "option_row": list(option_row),
+                            "combo_bits": "".join("1" if int(v) else "0" for v in option_row),
+                        },
+                        indent=2,
+                        ensure_ascii=True,
+                    ),
+                    encoding="utf-8",
+                )
+            _run_binary_once(binary=binary, work_dir=work_dir, env=run_env, log_path=variant_log)
+            result_output_path = result_dir / "el_data_out.bin"
+            if not result_output_path.exists():
+                raise SystemExit(
+                    "\n".join(
+                        [
+                            f"Exact reference run finished but numerical output is missing for {case.case_name}/{variant}/opt_{option_index:03d}.",
+                            f"Expected output file: {result_output_path}",
+                            "Rebuild mod_2022 from the updated sources and rerun.",
+                        ]
+                    )
+                )
+            if dump_dir is not None:
+                required_dump_files = [
+                    dump_dir / "launch_meta.json",
+                    dump_dir / "execution_parameters.bin",
+                    dump_dir / "gauss_dat.bin",
+                    dump_dir / "shape_fun_ref.bin",
+                    dump_dir / "el_data_in.bin",
+                    dump_dir / "el_data_out.bin",
+                ]
+                missing_dump_files = [str(path.name) for path in required_dump_files if not path.exists()]
+                if missing_dump_files:
+                    raise SystemExit(
+                        "\n".join(
+                            [
+                                f"OpenCL exact run finished but launch dump is incomplete for {case.case_name}/{variant}/opt_{option_index:03d}.",
+                                f"Dump dir: {dump_dir}",
+                                f"Missing files: {', '.join(missing_dump_files)}",
+                                "Rebuild mod_2022 from the updated sources and rerun with --dump-launch-artifacts.",
+                            ]
+                        )
+                    )
             if not header_path.exists() or not result_path.exists():
                 raise SystemExit(f"Expected files missing after run: {header_path} / {result_path}")
             record = _result_line_to_payload(
@@ -862,6 +1430,15 @@ def _run_case(
                 option_index=option_index,
                 option_row=option_row,
                 raw_line=_read_last_result_line(result_path),
+            )
+            record["numerical_output"] = _save_output_artifacts_from_file(
+                output_dir=result_dir,
+                backend="opencl",
+                case_name=case.case_name,
+                variant=variant,
+                option_index=option_index,
+                option_row=option_row,
+                output_path=result_output_path,
             )
             case_records.append(record)
             _append_jsonl(eval_path, record)
@@ -887,9 +1464,476 @@ def _run_case(
     return case_records, eval_counter
 
 
+def _run_metal_exact_replay(
+    *,
+    mod_dir: Path,
+    benchmark_case: str,
+    case_specs: list[ExactCaseSpec],
+    variants: list[str],
+    out_dir: Path,
+    eval_path: Path,
+    iter_path: Path,
+    replay_dump_root: Path,
+    numerical_outputs_root: Path,
+    device_index: int,
+    requested_device_index: int,
+    repeats: int,
+    limit_option_rows: int,
+    verify_output_tol: float,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    from gpu.metal.filip_exact_replay import FilipMetalReplayRunner, load_replay_dump, option_dump_dir, resolve_dump_root
+
+    _require_path(mod_dir, "Filip mod_2022 directory with OpenCL kernel sources")
+    dump_root = resolve_dump_root(replay_dump_root)
+    _require_path(dump_root, "OpenCL replay dump root")
+
+    runner = FilipMetalReplayRunner(device_index=device_index)
+    device_label = runner.device_name
+    option_rows = _filip_option_rows()
+    if int(limit_option_rows) > 0:
+        option_rows = option_rows[: int(limit_option_rows)]
+    total_evals = len(case_specs) * len(variants) * len(option_rows)
+
+    print("=== FILIP ORIGINAL EXACT REPLAY (METAL) ===")
+    print(f"benchmark case     : {benchmark_case}")
+    print("backend            : metal")
+    print(f"device label       : {device_label}")
+    print(f"replay dump root   : {dump_root}")
+    print(f"repeats            : {max(1, int(repeats))}")
+    print(f"total evaluations  : {total_evals}")
+    print(f"out dir            : {out_dir}")
+
+    raw_dir = out_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    translated_dir = out_dir / "translated_metal"
+    translated_dir.mkdir(parents=True, exist_ok=True)
+
+    records: list[dict[str, Any]] = []
+    best_so_far = float("inf")
+    complete = 0
+
+    for case in case_specs:
+        case_log_dir = raw_dir / case.case_name
+        case_log_dir.mkdir(parents=True, exist_ok=True)
+        for variant in variants:
+            variant_log = case_log_dir / f"{case.case_name}__{variant}.log"
+            variant_log.write_text(
+                "\n".join(
+                    [
+                        "# Filip exact replay Metal run",
+                        f"# case={case.case_name}",
+                        f"# variant={variant}",
+                        f"# backend=metal",
+                        f"# device={device_label}",
+                        f"# replay_dump_root={dump_root}",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            kernel_path = _kernel_src(mod_dir, variant)
+            for option_index, option_row in enumerate(option_rows):
+                complete += 1
+                print(
+                    f"[metal replay] {complete}/{total_evals} case={case.case_name} variant={variant} option={option_index + 1}/{len(option_rows)}",
+                    flush=True,
+                )
+                dump_dir = option_dump_dir(dump_root, case.case_name, variant, option_index)
+                if not dump_dir.exists():
+                    raise SystemExit(
+                        "\n".join(
+                            [
+                                f"Missing OpenCL replay dump for {case.case_name}/{variant}/opt_{option_index:03d}.",
+                                f"Expected dump dir: {dump_dir}",
+                                "Generate dumps first on Linux/OpenCL with:",
+                                "  python run_filip_reference_exact.py --backend intel --benchmark-case ... --dump-launch-artifacts",
+                            ]
+                        )
+                    )
+                dump = load_replay_dump(dump_dir)
+                replay = runner.replay(
+                    dump=dump,
+                    kernel_path=kernel_path,
+                    variant=variant,
+                    option_row=option_row,
+                    repeats=max(1, int(repeats)),
+                    debug_source_path=translated_dir / case.case_name / variant / f"opt_{option_index:03d}.metal",
+                    verify_tol=float(verify_output_tol),
+                )
+
+                validation = dict(replay["validation"])
+                if validation.get("within_tolerance") is False:
+                    with variant_log.open("a", encoding="utf-8") as log:
+                        log.write(
+                            json.dumps(
+                                {
+                                    "case": case.case_name,
+                                    "variant": variant,
+                                    "option_index": option_index,
+                                    "dump_dir": str(dump_dir),
+                                    "validation": validation,
+                                },
+                                ensure_ascii=True,
+                                indent=2,
+                            )
+                            + "\n"
+                        )
+                    raise SystemExit(
+                        "\n".join(
+                            [
+                                f"Metal replay output mismatch for {case.case_name}/{variant}/opt_{option_index:03d}.",
+                                f"Dump dir: {dump_dir}",
+                                f"Max abs diff: {validation.get('max_abs_diff')}",
+                                f"See log: {variant_log}",
+                            ]
+                        )
+                    )
+
+                meta = dict(dump.metadata)
+                work_group_size = int(meta["work_group_size"])
+                nr_work_groups = int(meta["nr_work_groups"])
+                nr_threads = nr_work_groups * work_group_size
+                nr_elems_per_thread = int(dump.execution_parameters[0]) if dump.execution_parameters.size >= 1 else 1
+                nr_elems = int(dump.execution_parameters[1]) if dump.execution_parameters.size >= 2 else int(meta.get("nr_elems_this_kercall", 0))
+                nr_elems_per_work_group = nr_elems_per_thread * work_group_size
+                kernel_s = float(replay["kernel_time_s"])
+                internal_s = float(replay["internal_time_s"])
+                input_s = float(replay["input_time_s"])
+                output_s = float(replay["output_time_s"])
+                ns_per_unit = kernel_s * 1e9 / max(1.0, float(nr_elems) * float(case.n_qp))
+                internal_ns_per_elem = internal_s * 1e9 / max(1.0, float(nr_elems))
+                record = {
+                    "case_key": f"{case.element_type}__{case.operator}",
+                    "config": {
+                        "operator": case.operator,
+                        "element_type": case.element_type,
+                        "algorithm_variant": variant,
+                        "n_elements": int(nr_elems),
+                        "n_qp": int(case.n_qp),
+                        "workgroup_size": int(work_group_size),
+                        "coal_read": int(option_row[0]),
+                        "coal_write": int(option_row[1]),
+                        "compute_all_shape_fun_der": int(option_row[2]),
+                        "use_workspace_for_pde_coeff": int(option_row[3]),
+                        "use_workspace_for_geo_data": int(option_row[4]),
+                        "use_workspace_for_shape_fun": int(option_row[5]),
+                        "use_workspace_for_stiff_mat": int(option_row[6]),
+                        "padding": 1 if int(option_row[8]) else 0,
+                    },
+                    "metrics": {
+                        "elapsed_s_mean": kernel_s,
+                        "n_elements": float(nr_elems),
+                        "n_qp_effective": float(case.n_qp),
+                        "gflops_mean": float("nan"),
+                        "gbps_mean": float("nan"),
+                        "energy_j_mean": float("nan"),
+                        "j_per_gflop": float("nan"),
+                    },
+                    "raw_phase": {
+                        "el_data_in_mb": float(meta.get("el_data_in_bytes", int(dump.el_data_in.nbytes))) / 1e6,
+                        "el_data_out_mb": float(meta.get("el_data_out_bytes", 0)) / 1e6,
+                        "nr_elems_per_work_group": int(nr_elems_per_work_group),
+                        "nr_elems": int(nr_elems),
+                        "nr_elems_per_thread": int(nr_elems_per_thread),
+                        "nr_work_groups": int(nr_work_groups),
+                        "work_group_size": int(work_group_size),
+                        "nr_threads": int(nr_threads),
+                        "input_time_s": input_s,
+                        "input_bw_gbps": float(replay["input_bw_gbps"]),
+                        "kernel_time_s": kernel_s,
+                        "internal_time_s": internal_s,
+                        "output_time_s": output_s,
+                        "output_bw_gbps": float(replay["output_bw_gbps"]),
+                        "internal_ns_per_elem": internal_ns_per_elem,
+                        "kernel_ns_per_unit": ns_per_unit,
+                        "validation": validation,
+                    },
+                    "variant": variant,
+                    "option_index": int(option_index),
+                    "option_row": list(option_row),
+                    "combo_bits": "".join("1" if int(v) else "0" for v in option_row),
+                    "status": "ok",
+                    "constraints_ok": True,
+                    "ns_per_unit": ns_per_unit,
+                }
+                record["numerical_output"] = _save_output_artifacts_from_array(
+                    output_dir=_option_output_dir(
+                        numerical_outputs_root,
+                        case_name=case.case_name,
+                        variant=variant,
+                        option_index=option_index,
+                    ),
+                    backend="metal",
+                    case_name=case.case_name,
+                    variant=variant,
+                    option_index=option_index,
+                    option_row=option_row,
+                    arr=np.asarray(replay["output"], dtype=np.float32),
+                    validation=validation,
+                    source_dump_dir=dump_dir,
+                    translated_source_path=str(replay["translated_source_path"]),
+                )
+                records.append(record)
+                _append_jsonl(eval_path, record)
+                with variant_log.open("a", encoding="utf-8") as log:
+                    log.write(
+                        json.dumps(
+                            {
+                                "case": case.case_name,
+                                "variant": variant,
+                                "option_index": option_index,
+                                "dump_dir": str(dump_dir),
+                                "translated_source_path": str(replay["translated_source_path"]),
+                                "timings": {
+                                    "input_time_s": input_s,
+                                    "kernel_time_s": kernel_s,
+                                    "internal_time_s": internal_s,
+                                    "output_time_s": output_s,
+                                },
+                                "validation": validation,
+                            },
+                            ensure_ascii=True,
+                        )
+                        + "\n"
+                    )
+
+                score = _score(record)
+                if math.isfinite(score) and score < best_so_far:
+                    best_so_far = score
+                _append_jsonl(
+                    iter_path,
+                    {
+                        "iteration": complete,
+                        "workflow": "filip_original_exact_metal_replay",
+                        "case_key": record["case_key"],
+                        "variant": record["variant"],
+                        "option_index": record["option_index"],
+                        "best_score_internal_ns_per_elem": best_so_far if math.isfinite(best_so_far) else None,
+                    },
+                )
+
+    meta = {
+        "device": device_label,
+        "resolved_backend": "metal",
+        "execution_mode": "exact_reference_metal_replay",
+        "requested_device_index": int(requested_device_index),
+        "device_index_used": int(runner.device_index),
+        "repeats": max(1, int(repeats)),
+        "comparison_ready_metric": "internal_ns_per_elem",
+        "comparison_note": (
+            "True kernel port: Metal replays the exact packed launch buffers dumped from Filip's original OpenCL path "
+            "and runs translated QSS/SQS/SSQ kernels on Apple GPU."
+        ),
+        "replay_dump_root": str(dump_root),
+        "translated_sources_root": str(translated_dir),
+    }
+    return records, meta
+
+
+def _run_metal_exact_port(
+    *,
+    benchmark_case: str,
+    case_specs: list[ExactCaseSpec],
+    variants: list[str],
+    out_dir: Path,
+    eval_path: Path,
+    iter_path: Path,
+    device_index: int,
+    requested_device_index: int,
+    profile: str,
+    repeats: int,
+    memory_budget_mb: int,
+    memory_budget_fraction: float,
+    requested_n_elements: int,
+    requested_workgroup_size: int,
+    limit_option_rows: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    problem = FemParametricProblem(
+        FemParametricProblemConfig(
+            backend="metal",
+            device_index=device_index,
+            repeats=max(1, int(repeats)),
+            execution_policy="native_only",
+            n_elements_min=1,
+            n_elements_max=1,
+            n_qp_min=1,
+            n_qp_max=1,
+            element_types=sorted({case.element_type for case in case_specs}),
+            operators=sorted({case.operator for case in case_specs}),
+            dtypes=["float32"],
+            algorithm_variants=list(variants),
+            workgroup_sizes=[1, 32, 64, 128, 256, 512],
+            use_workspace_for_pde_coeff_choices=[0, 1],
+            use_workspace_for_geo_data_choices=[0, 1],
+            use_workspace_for_shape_fun_choices=[0, 1],
+            use_workspace_for_stiff_mat_choices=[0, 1],
+            padding_choices=[0, 1],
+            compute_all_shape_fun_der_choices=[0, 1],
+            coal_read_choices=[0, 1],
+            coal_write_choices=[0, 1],
+            memory_budget_mb=max(0, int(memory_budget_mb)),
+            memory_budget_fraction=float(memory_budget_fraction),
+            record_raw_artifacts=False,
+        )
+    )
+    device_label = problem.mode.device_name
+    workgroup_size = _portable_suggest_workgroup(problem, int(requested_workgroup_size))
+    option_rows = _filip_option_rows()
+    if int(limit_option_rows) > 0:
+        option_rows = option_rows[: int(limit_option_rows)]
+    total_evals = len(case_specs) * len(variants) * len(option_rows)
+
+    print("=== FILIP ORIGINAL EXACT PORT (METAL) ===")
+    print(f"benchmark case     : {benchmark_case}")
+    print("backend            : metal")
+    print(f"device label       : {device_label}")
+    print(f"profile            : {profile}")
+    print(f"repeats            : {repeats}")
+    print(f"workgroup size     : {workgroup_size}")
+    print(f"total evaluations  : {total_evals}")
+    print(f"out dir            : {out_dir}")
+
+    raw_dir = out_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    records_portable: list[dict[str, Any]] = []
+    best_so_far = float("inf")
+    complete = 0
+
+    for case in case_specs:
+        case_n_elements = int(requested_n_elements)
+        if case_n_elements <= 0:
+            case_n_elements = _portable_auto_n_elements(
+                problem=problem,
+                profile=profile,
+                element_type=case.element_type,
+                operator=case.operator,
+                dtype="float32",
+                n_qp=case.n_qp,
+                workgroup_size=workgroup_size,
+            )
+
+        case_log_dir = raw_dir / case.case_name
+        case_log_dir.mkdir(parents=True, exist_ok=True)
+        for variant in variants:
+            variant_log = case_log_dir / f"{case.case_name}__{variant}.log"
+            with variant_log.open("w", encoding="utf-8") as log:
+                log.write(
+                    "\n".join(
+                        [
+                            "# Filip exact-style Metal port",
+                            f"# case={case.case_name}",
+                            f"# variant={variant}",
+                            f"# backend=metal",
+                            f"# device={device_label}",
+                            f"# workgroup_size={workgroup_size}",
+                            f"# n_elements={case_n_elements}",
+                            "",
+                        ]
+                    )
+                )
+            for option_index, option_row in enumerate(option_rows):
+                complete += 1
+                print(
+                    f"[metal exact] {complete}/{total_evals} case={case.case_name} variant={variant} option={option_index + 1}/{len(option_rows)}",
+                    flush=True,
+                )
+                cfg = {
+                    "n_elements": int(case_n_elements),
+                    "n_qp": int(case.n_qp),
+                    "element_type": case.element_type,
+                    "operator": case.operator,
+                    "dtype": "float32",
+                    "algorithm_variant": variant,
+                    "workgroup_size": int(workgroup_size),
+                    "coal_read": int(option_row[0]),
+                    "coal_write": int(option_row[1]),
+                    "compute_all_shape_fun_der": int(option_row[2]),
+                    "use_workspace_for_pde_coeff": int(option_row[3]),
+                    "use_workspace_for_geo_data": int(option_row[4]),
+                    "use_workspace_for_shape_fun": int(option_row[5]),
+                    "use_workspace_for_stiff_mat": int(option_row[6]),
+                    "padding": 1 if int(option_row[8]) == 1 else 0,
+                }
+                res = problem.evaluate(cfg)
+                metrics = dict(res.metrics)
+                cfg_eff = (
+                    dict(res.artifacts.get("config_effective"))
+                    if isinstance(res.artifacts.get("config_effective"), dict)
+                    else dict(cfg)
+                )
+                ns_per_unit = (
+                    _safe_float(metrics.get("elapsed_s_mean")) * 1e9
+                    / max(1.0, _safe_float(metrics.get("n_elements")) * max(1.0, _safe_float(metrics.get("n_qp_effective"))))
+                )
+                record = {
+                    "backend": "metal",
+                    "device": device_label,
+                    "case_key": f"{case.element_type}__{case.operator}",
+                    "variant": variant,
+                    "option_index": option_index,
+                    "option_row": list(option_row),
+                    "config": cfg_eff,
+                    "metrics": metrics,
+                    "status": str(res.status),
+                    "constraints_ok": bool(res.constraints_ok),
+                    "violations": list(res.violations),
+                    "ns_per_unit": ns_per_unit,
+                }
+                records_portable.append(record)
+                with variant_log.open("a", encoding="utf-8") as log:
+                    log.write(json.dumps(record, ensure_ascii=True) + "\n")
+                if math.isfinite(ns_per_unit) and res.status == "ok" and res.constraints_ok and ns_per_unit < best_so_far:
+                    best_so_far = ns_per_unit
+                _append_jsonl(
+                    iter_path,
+                    {
+                        "iteration": complete,
+                        "workflow": "filip_original_exact_metal_port",
+                        "case_key": record["case_key"],
+                        "variant": variant,
+                        "option_index": option_index,
+                        "best_score_ns_per_unit": best_so_far if math.isfinite(best_so_far) else None,
+                    },
+                )
+
+    plot_rows = [_portable_plot_row(record, backend="metal", device=device_label) for record in records_portable if record["status"] == "ok"]
+    peak_gflops, peak_bw = _roofline_peaks_for_backend("metal", plot_rows)
+    records = [
+        _portable_record_to_payload(
+            case=next(spec for spec in case_specs if f"{spec.element_type}__{spec.operator}" == record["case_key"]),
+            backend="metal",
+            device_label=device_label,
+            record=record,
+            peak_gflops=peak_gflops,
+            peak_bw=peak_bw,
+        )
+        for record in records_portable
+    ]
+    for record in records:
+        _append_jsonl(eval_path, record)
+
+    meta = {
+        "device": device_label,
+        "resolved_backend": "metal",
+        "execution_mode": problem.mode.execution_mode,
+        "requested_device_index": int(requested_device_index),
+        "device_index_used": int(device_index),
+        "profile": str(profile),
+        "repeats": int(repeats),
+        "workgroup_size": int(workgroup_size),
+        "memory_budget_bytes": int(problem.mode.profile.memory_budget_bytes),
+        "comparison_ready_metric": "internal_ns_per_elem",
+        "comparison_note": (
+            "Metal exact-style port uses the native project Metal FEM backend and the same 80-option Filip campaign. "
+            "Phase timings are reconstructed from the portable performance model; this is not the legacy OpenCL/internal event timeline."
+        ),
+    }
+    return records, meta
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Run Filip's original OpenCL reference benchmark as an exact validation workflow.")
-    ap.add_argument("--backend", choices=["opencl", "intel", "auto"], default="intel")
+    ap = argparse.ArgumentParser(description="Run Filip's exact validation workflow on legacy OpenCL or the native Metal exact-style port.")
+    ap.add_argument("--backend", choices=["opencl", "intel", "metal", "auto"], default="auto")
     ap.add_argument("--benchmark-case", choices=sorted(CASE_SPECS.keys()), default="prism_pair")
     ap.add_argument("--variants", default="qss,sqs,ssq")
     ap.add_argument("--modfem-dir", default=str(_default_modfem_dir()))
@@ -897,19 +1941,21 @@ def main() -> None:
     ap.add_argument("--arch-test", default="auto")
     ap.add_argument("--input-override", default="", help="Optional replacement input_interactive.txt for exact runs.")
     ap.add_argument("--device-label", default="", help="Optional label written to summary/CSV. Does not change actual OpenCL selection.")
+    ap.add_argument("--device-index", type=int, default=0)
+    ap.add_argument("--profile", choices=["quick", "paper", "full"], default="paper")
+    ap.add_argument("--repeats", type=int, default=3)
+    ap.add_argument("--memory-budget-mb", type=int, default=768)
+    ap.add_argument("--memory-budget-fraction", type=float, default=0.35)
+    ap.add_argument("--n-elements", type=int, default=0, help="Metal exact-style port only. 0 = automatic conservative size.")
+    ap.add_argument("--workgroup-size", type=int, default=0, help="Metal exact-style port only. 0 = prefer 64 or nearest supported.")
     ap.add_argument("--skip-build", action="store_true")
+    ap.add_argument("--dump-launch-artifacts", action="store_true", help="OpenCL exact only: dump packed launch buffers for later Metal replay.")
+    ap.add_argument("--replay-dump-root", default="", help="Metal exact only: path to OpenCL launch_dumps root or an exact output dir that contains it.")
+    ap.add_argument("--verify-output-tol", type=float, default=1e-5, help="Metal replay only: max abs diff tolerance against dumped OpenCL outputs.")
     ap.add_argument("--limit-option-rows", type=int, default=0, help=argparse.SUPPRESS)
     args = ap.parse_args()
 
-    backend = str(args.backend).strip().lower()
-    if backend not in {"opencl", "intel", "auto"}:
-        raise SystemExit("Exact Filip reference mode supports only OpenCL/Intel backends.")
-
-    mod_dir = Path(args.modfem_dir).expanduser().resolve()
-    _require_path(mod_dir, "Filip mod_2022 directory")
-    input_override = Path(args.input_override).expanduser().resolve() if str(args.input_override).strip() else None
-    if input_override is not None:
-        _require_path(input_override, "input_interactive override")
+    resolved_backend = _resolve_exact_backend(args.backend)
 
     variants = _parse_csv_list(args.variants)
     if not variants:
@@ -918,7 +1964,7 @@ def main() -> None:
     if unsupported_variants:
         raise SystemExit(f"Unsupported variants for exact reference mode: {', '.join(unsupported_variants)}")
 
-    out_dir = _make_out_dir()
+    out_dir = _make_out_dir(resolved_backend)
     eval_path = out_dir / "evaluations.jsonl"
     iter_path = out_dir / "iterations.jsonl"
     logs_dir = out_dir / "logs"
@@ -946,99 +1992,222 @@ def main() -> None:
             )
         )
 
-    staged_cases: list[tuple[ExactCaseSpec, Path, list[list[int]]]] = []
-    for case in normalized_case_specs:
-        work_dir, option_rows = _copy_case_workspace(
-            mod_dir=mod_dir,
-            case=case,
-            out_dir=out_dir,
-            input_override=input_override,
-            limit_option_rows=int(args.limit_option_rows),
-        )
-        staged_cases.append((case, work_dir, option_rows))
-
-    total_evals = sum(len(option_rows) * len(variants) for _, _, option_rows in staged_cases)
-    device_label = str(args.device_label).strip() or _detect_device_label("intel")
-
-    print("=== FILIP ORIGINAL EXACT REFERENCE ===")
-    print(f"benchmark case     : {args.benchmark_case}")
-    print(f"backend            : opencl")
-    print(f"device label       : {device_label}")
-    print(f"mod_fem_dir        : {mod_dir}")
-    print(f"variants           : {','.join(variants)}")
-    print(f"total evaluations  : {total_evals}")
-    print(f"out dir            : {out_dir}")
-
-    built_arches: dict[str, Path] = {}
-    records: list[dict[str, Any]] = []
-    eval_counter = 0
-    for case, work_dir, option_rows in staged_cases:
-        if case.arch not in built_arches:
-            built_arches[case.arch] = _build_case(
+    if resolved_backend == "metal":
+        resolved_device_index, _ = resolve_device_index("metal", int(args.device_index))
+        replay_dump_root = Path(args.replay_dump_root).expanduser().resolve() if str(args.replay_dump_root).strip() else None
+        numerical_outputs_root = out_dir / "numerical_outputs"
+        if replay_dump_root is not None:
+            mod_dir = Path(args.modfem_dir).expanduser().resolve()
+            records, metal_meta = _run_metal_exact_replay(
                 mod_dir=mod_dir,
-                arch=case.arch,
-                rebuild=not bool(args.skip_build),
-                log_dir=logs_dir,
+                benchmark_case=args.benchmark_case,
+                case_specs=normalized_case_specs,
+                variants=variants,
+                out_dir=out_dir,
+                eval_path=eval_path,
+                iter_path=iter_path,
+                replay_dump_root=replay_dump_root,
+                numerical_outputs_root=numerical_outputs_root,
+                device_index=resolved_device_index,
+                requested_device_index=int(args.device_index),
+                repeats=int(args.repeats),
+                limit_option_rows=int(args.limit_option_rows),
+                verify_output_tol=float(args.verify_output_tol),
             )
-        binary = built_arches[case.arch]
-        case_records, eval_counter = _run_case(
-            mod_dir=mod_dir,
-            case=case,
-            work_dir=work_dir,
-            option_rows=option_rows,
-            variants=variants,
-            binary=binary,
-            out_dir=out_dir,
-            eval_path=eval_path,
-            iter_path=iter_path,
-            global_eval_start=eval_counter,
-            total_evals=total_evals,
-            device_label=device_label,
-        )
-        records.extend(case_records)
+        else:
+            records, metal_meta = _run_metal_exact_port(
+                benchmark_case=args.benchmark_case,
+                case_specs=normalized_case_specs,
+                variants=variants,
+                out_dir=out_dir,
+                eval_path=eval_path,
+                iter_path=iter_path,
+                device_index=resolved_device_index,
+                requested_device_index=int(args.device_index),
+                profile=str(args.profile),
+                repeats=int(args.repeats),
+                memory_budget_mb=int(args.memory_budget_mb),
+                memory_budget_fraction=float(args.memory_budget_fraction),
+                requested_n_elements=int(args.n_elements),
+                requested_workgroup_size=int(args.workgroup_size),
+                limit_option_rows=int(args.limit_option_rows),
+            )
+        device_label = str(args.device_label).strip() or str(metal_meta["device"])
+        case_csvs = _write_exact_case_csvs(out_dir, records, backend="metal")
+        combined_csv = out_dir / "csv" / "result_filip_original__metal.csv"
+        _write_current_combined_csv(combined_csv, records, backend="metal", device_label=device_label)
+        plots = _plot_exact_results(records, out_dir)
+        best_overall = _best_overall_payload(records)
+        summary = {
+            "created_at": datetime.now().astimezone().isoformat(),
+            "backend": "metal",
+            "resolved_backend": "metal",
+            "execution_mode": str(metal_meta["execution_mode"]),
+            "workflow": "filip_original",
+            "filip_mode": "exact_reference",
+            "benchmark_case": args.benchmark_case,
+            "operators": sorted({case.operator for case in normalized_case_specs}),
+            "element_types": sorted({case.element_type for case in normalized_case_specs}),
+            "variants": variants,
+            "device": device_label,
+            "cases": [
+                {
+                    "case_name": case.case_name,
+                    "label": case.label,
+                    "operator": case.operator,
+                    "element_type": case.element_type,
+                    "n_qp": case.n_qp,
+                    "arch": "metal_port",
+                }
+                for case in normalized_case_specs
+            ],
+            "total_evaluations": len(records),
+            "evaluations_path": str(eval_path),
+            "iterations_path": str(iter_path),
+            "combined_csv": str(combined_csv),
+            "case_csvs": case_csvs,
+            "plots": plots,
+            "best_overall": best_overall,
+            "comparison_ready_metric": str(metal_meta["comparison_ready_metric"]),
+            "comparison_note": str(metal_meta["comparison_note"]),
+            "out_dir": str(out_dir),
+            "profile": metal_meta.get("profile"),
+            "repeats": metal_meta["repeats"],
+            "workgroup_size": metal_meta.get("workgroup_size"),
+            "memory_budget_bytes": metal_meta.get("memory_budget_bytes"),
+            "device_index_requested": metal_meta["requested_device_index"],
+            "device_index_used": metal_meta["device_index_used"],
+            "replay_dump_root": metal_meta.get("replay_dump_root"),
+            "translated_sources_root": metal_meta.get("translated_sources_root"),
+            "numerical_outputs": _exact_numerical_output_summary(
+                records=records,
+                root=numerical_outputs_root if metal_meta["execution_mode"] == "exact_reference_metal_replay" else None,
+                best_overall=best_overall,
+                note=(
+                    "Saved per-option Metal output buffers and JSON previews for replay validation."
+                    if metal_meta["execution_mode"] == "exact_reference_metal_replay"
+                    else "The exact-style Metal fallback does not currently expose raw output buffers."
+                ),
+            ),
+            "validation_summary": _validation_summary(records),
+        }
+    else:
+        mod_dir = Path(args.modfem_dir).expanduser().resolve()
+        _require_path(mod_dir, "Filip mod_2022 directory")
+        input_override = Path(args.input_override).expanduser().resolve() if str(args.input_override).strip() else None
+        if input_override is not None:
+            _require_path(input_override, "input_interactive override")
 
-    combined_csv = out_dir / "csv" / "result_filip_original__opencl.csv"
-    _write_current_combined_csv(combined_csv, records, device_label=device_label)
-    plots = _plot_exact_results(records, out_dir)
-    best_overall = _best_overall_payload(records)
+        staged_cases: list[tuple[ExactCaseSpec, Path, list[list[int]]]] = []
+        for case in normalized_case_specs:
+            work_dir, option_rows = _copy_case_workspace(
+                mod_dir=mod_dir,
+                case=case,
+                out_dir=out_dir,
+                input_override=input_override,
+                limit_option_rows=int(args.limit_option_rows),
+            )
+            staged_cases.append((case, work_dir, option_rows))
 
-    summary = {
-        "created_at": datetime.now().astimezone().isoformat(),
-        "backend": "opencl",
-        "resolved_backend": "opencl",
-        "execution_mode": "exact_reference",
-        "workflow": "filip_original",
-        "filip_mode": "exact_reference",
-        "benchmark_case": args.benchmark_case,
-        "operators": sorted({case.operator for case in normalized_case_specs}),
-        "element_types": sorted({case.element_type for case in normalized_case_specs}),
-        "variants": variants,
-        "device": device_label,
-        "modfem_dir": str(mod_dir),
-        "built_arches": {arch: str(path) for arch, path in built_arches.items()},
-        "cases": [
-            {
-                "case_name": case.case_name,
-                "label": case.label,
-                "operator": case.operator,
-                "element_type": case.element_type,
-                "n_qp": case.n_qp,
-                "arch": case.arch,
-                "work_dir": str(work_dir),
-                "option_rows": len(option_rows),
-            }
-            for case, work_dir, option_rows in staged_cases
-        ],
-        "total_evaluations": len(records),
-        "evaluations_path": str(eval_path),
-        "iterations_path": str(iter_path),
-        "combined_csv": str(combined_csv),
-        "plots": plots,
-        "best_overall": best_overall,
-        "comparison_ready_metric": "internal_ns_per_elem",
-        "comparison_note": "This mode executes Filip's original OpenCL path and records native 'internal' timings from the original CSV output.",
-        "out_dir": str(out_dir),
-    }
+        total_evals = sum(len(option_rows) * len(variants) for _, _, option_rows in staged_cases)
+        device_label = str(args.device_label).strip() or _detect_device_label("intel")
+
+        print("=== FILIP ORIGINAL EXACT REFERENCE ===")
+        print(f"benchmark case     : {args.benchmark_case}")
+        print("backend            : opencl")
+        print(f"device label       : {device_label}")
+        print(f"mod_fem_dir        : {mod_dir}")
+        print(f"variants           : {','.join(variants)}")
+        print(f"total evaluations  : {total_evals}")
+        print(f"out dir            : {out_dir}")
+
+        built_arches: dict[str, Path] = {}
+        dump_launch_root = (out_dir / "launch_dumps") if bool(args.dump_launch_artifacts) else None
+        numerical_outputs_root = dump_launch_root if dump_launch_root is not None else (out_dir / "numerical_outputs")
+        records = []
+        eval_counter = 0
+        for case, work_dir, option_rows in staged_cases:
+            if case.arch not in built_arches:
+                built_arches[case.arch] = _build_case(
+                    mod_dir=mod_dir,
+                    arch=case.arch,
+                    rebuild=not bool(args.skip_build),
+                    log_dir=logs_dir,
+                )
+            binary = built_arches[case.arch]
+            case_records, eval_counter = _run_case(
+                mod_dir=mod_dir,
+                case=case,
+                work_dir=work_dir,
+                option_rows=option_rows,
+                variants=variants,
+                binary=binary,
+                out_dir=out_dir,
+                eval_path=eval_path,
+                iter_path=iter_path,
+                global_eval_start=eval_counter,
+                total_evals=total_evals,
+                device_label=device_label,
+                numerical_outputs_root=numerical_outputs_root,
+                dump_launch_root=dump_launch_root,
+            )
+            records.extend(case_records)
+
+        case_csvs = _write_exact_case_csvs(out_dir, records, backend="opencl")
+        combined_csv = out_dir / "csv" / "result_filip_original__opencl.csv"
+        _write_current_combined_csv(combined_csv, records, backend="opencl", device_label=device_label)
+        plots = _plot_exact_results(records, out_dir)
+        best_overall = _best_overall_payload(records)
+        summary = {
+            "created_at": datetime.now().astimezone().isoformat(),
+            "backend": "opencl",
+            "resolved_backend": "opencl",
+            "execution_mode": "exact_reference",
+            "workflow": "filip_original",
+            "filip_mode": "exact_reference",
+            "benchmark_case": args.benchmark_case,
+            "operators": sorted({case.operator for case in normalized_case_specs}),
+            "element_types": sorted({case.element_type for case in normalized_case_specs}),
+            "variants": variants,
+            "device": device_label,
+            "modfem_dir": str(mod_dir),
+            "built_arches": {arch: str(path) for arch, path in built_arches.items()},
+            "cases": [
+                {
+                    "case_name": case.case_name,
+                    "label": case.label,
+                    "operator": case.operator,
+                    "element_type": case.element_type,
+                    "n_qp": case.n_qp,
+                    "arch": case.arch,
+                    "work_dir": str(work_dir),
+                    "option_rows": len(option_rows),
+                }
+                for case, work_dir, option_rows in staged_cases
+            ],
+            "total_evaluations": len(records),
+            "evaluations_path": str(eval_path),
+            "iterations_path": str(iter_path),
+            "combined_csv": str(combined_csv),
+            "case_csvs": case_csvs,
+            "plots": plots,
+            "best_overall": best_overall,
+            "comparison_ready_metric": "internal_ns_per_elem",
+            "comparison_note": "This mode executes Filip's original OpenCL path and records native 'internal' timings from the original CSV output.",
+            "out_dir": str(out_dir),
+            "launch_dumps_root": str(dump_launch_root) if dump_launch_root is not None else "",
+            "numerical_outputs": _exact_numerical_output_summary(
+                records=records,
+                root=numerical_outputs_root,
+                best_overall=best_overall,
+                note=(
+                    "Saved per-option OpenCL output buffers and JSON previews."
+                    if dump_launch_root is None
+                    else "Per-option OpenCL outputs are available inside launch_dumps together with full launch artifacts."
+                ),
+            ),
+        }
+
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=True), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=True))
 

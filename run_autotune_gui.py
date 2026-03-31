@@ -82,7 +82,7 @@ FILIP_CASE_DESCRIPTIONS: Dict[str, str] = {
 FILIP_MODE_CHOICES: List[str] = ["portable_sweep", "exact_reference"]
 FILIP_MODE_DESCRIPTIONS: Dict[str, str] = {
     "portable_sweep": "Current project benchmark path. Exhaustive constrained sweep on the portable FEM harness.",
-    "exact_reference": "Original Filip OpenCL path. Rebuilds mod_2022, prepares the exact workspace, and runs the native 80-option reference campaign with native 'internal' timings.",
+    "exact_reference": "Linux/OpenCL: original Filip path with mod_2022 rebuild and native OpenCL 'internal' timings. Apple/Metal: use the dedicated workflow fields below to point at an OpenCL exact dump root and replay translated Filip kernels on Metal. Without a replay dump root the fallback path is the exact-style Metal port.",
 }
 
 OPTIMIZATION_PLOT_PREFERENCE: List[str] = [
@@ -904,6 +904,40 @@ class AutotuneGui(tk.Tk):
             justify="left",
         ).grid(row=7, column=2, columnspan=4, sticky="we", padx=6, pady=(8, 0))
 
+        ttk.Label(top, text="Filip mod_2022").grid(row=8, column=0, sticky="w", pady=(8, 0))
+        self.workflow_filip_modfem_var = tk.StringVar(value="")
+        ttk.Entry(top, textvariable=self.workflow_filip_modfem_var).grid(
+            row=8, column=1, columnspan=4, sticky="we", padx=6, pady=(8, 0)
+        )
+        ttk.Button(top, text="Browse", command=self._browse_workflow_filip_modfem).grid(
+            row=8, column=5, sticky="w", padx=6, pady=(8, 0)
+        )
+
+        ttk.Label(top, text="Input override").grid(row=9, column=0, sticky="w", pady=(8, 0))
+        self.workflow_filip_input_override_var = tk.StringVar(value="")
+        ttk.Entry(top, textvariable=self.workflow_filip_input_override_var).grid(
+            row=9, column=1, columnspan=4, sticky="we", padx=6, pady=(8, 0)
+        )
+        ttk.Button(top, text="Browse", command=self._browse_workflow_filip_input_override).grid(
+            row=9, column=5, sticky="w", padx=6, pady=(8, 0)
+        )
+
+        self.workflow_filip_dump_launch_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            top,
+            text="Dump OpenCL launch artifacts",
+            variable=self.workflow_filip_dump_launch_var,
+        ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        ttk.Label(top, text="Replay dump root").grid(row=10, column=2, sticky="w", pady=(8, 0))
+        self.workflow_filip_replay_dump_root_var = tk.StringVar(value="")
+        ttk.Entry(top, textvariable=self.workflow_filip_replay_dump_root_var).grid(
+            row=10, column=3, columnspan=2, sticky="we", padx=6, pady=(8, 0)
+        )
+        ttk.Button(top, text="Browse", command=self._browse_workflow_filip_replay_dump_root).grid(
+            row=10, column=5, sticky="w", padx=6, pady=(8, 0)
+        )
+
         top.columnconfigure(1, weight=1)
         top.columnconfigure(5, weight=1)
 
@@ -938,8 +972,12 @@ class AutotuneGui(tk.Tk):
             self.workflow_iterations_var,
             self.workflow_filip_case_var,
             self.workflow_filip_mode_var,
+            self.workflow_filip_modfem_var,
+            self.workflow_filip_input_override_var,
+            self.workflow_filip_replay_dump_root_var,
         ):
             var.trace_add("write", lambda *_args: self._refresh_workflow_description())
+        self.workflow_filip_dump_launch_var.trace_add("write", lambda *_args: self._refresh_workflow_description())
 
         self.workflow_var.trace_add("write", lambda *_args: self._on_workflow_device_context_changed())
         self.workflow_platform_var.trace_add("write", lambda *_args: self._on_workflow_device_context_changed())
@@ -1079,6 +1117,7 @@ class AutotuneGui(tk.Tk):
         ttk.Button(frm_top, text="Browse", command=self._browse_result_dir).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Load as Optimization", command=self._load_selected_optimization).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Load as Matrix", command=self._load_selected_matrix).pack(side="left", padx=2)
+        ttk.Button(frm_top, text="Show Best Exact Output", command=self._show_best_exact_output).pack(side="left", padx=2)
 
         self.results_text = ScrolledText(self.tab_results, wrap="word")
         self.results_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -1306,12 +1345,157 @@ class AutotuneGui(tk.Tk):
             self.log_char_count = max_chars - trim_chars
         self.log_text.configure(state="disabled")
 
+    @staticmethod
+    def _best_exact_output_preview_path(summary: Dict[str, Any]) -> Path | None:
+        numerical = summary.get("numerical_outputs") or {}
+        preview = str(numerical.get("best_output_preview", "")).strip()
+        if preview:
+            path = Path(preview)
+            if path.exists():
+                return path
+        preview = str(numerical.get("example_output_preview", "")).strip()
+        if preview:
+            path = Path(preview)
+            if path.exists():
+                return path
+        return None
+
+    def _format_exact_results_payload(self, payload: Dict[str, Any], summary: Dict[str, Any]) -> str:
+        lines: List[str] = []
+        lines.append("Filip Exact Results")
+        lines.append("")
+        lines.append(f"Backend: {summary.get('backend', '')}")
+        lines.append(f"Execution mode: {summary.get('execution_mode', '')}")
+        lines.append(f"Benchmark case: {summary.get('benchmark_case', '')}")
+        lines.append(f"Device: {summary.get('device', '')}")
+        lines.append(f"Out dir: {summary.get('out_dir', '')}")
+        lines.append(f"Combined CSV: {summary.get('combined_csv', '')}")
+
+        numerical = summary.get("numerical_outputs") or {}
+        lines.append("")
+        lines.append("Numerical outputs")
+        lines.append(f"Available: {'yes' if numerical.get('available') else 'no'}")
+        if numerical.get("root"):
+            lines.append(f"Root: {numerical.get('root')}")
+        if numerical.get("records_with_output") is not None:
+            lines.append(f"Saved records: {numerical.get('records_with_output')}")
+        note = str(numerical.get("note", "")).strip()
+        if note:
+            lines.append(f"Note: {note}")
+        if summary.get("launch_dumps_root"):
+            lines.append(f"OpenCL launch dumps: {summary.get('launch_dumps_root')}")
+        if summary.get("replay_dump_root"):
+            lines.append(f"Replay dump root: {summary.get('replay_dump_root')}")
+        if summary.get("translated_sources_root"):
+            lines.append(f"Translated Metal kernels: {summary.get('translated_sources_root')}")
+
+        best = summary.get("best_overall") or {}
+        if best:
+            lines.append("")
+            lines.append("Best overall")
+            lines.append(f"Case key: {best.get('case_key', '')}")
+            lines.append(f"Variant: {best.get('variant', '')}")
+            lines.append(f"Option index: {best.get('option_index', '')}")
+            lines.append(f"Combo bits: {best.get('combo_bits', '')}")
+            lines.append(f"Internal ns/elem: {best.get('score_internal_ns_per_elem', '')}")
+            lines.append(f"Kernel ns/unit: {best.get('score_kernel_ns_per_unit', '')}")
+            if numerical.get("best_output_path"):
+                lines.append(f"Best output bin: {numerical.get('best_output_path')}")
+            if numerical.get("best_output_preview"):
+                lines.append(f"Best output preview: {numerical.get('best_output_preview')}")
+
+        validation = summary.get("validation_summary") or {}
+        if validation:
+            lines.append("")
+            lines.append("Validation")
+            for key in [
+                "records_with_validation",
+                "records_checked",
+                "records_with_expected_output",
+                "records_within_tolerance",
+                "records_out_of_tolerance",
+                "worst_max_abs_diff",
+                "worst_rms_diff",
+            ]:
+                if key in validation:
+                    lines.append(f"{key}: {validation.get(key)}")
+
+        preview_path = self._best_exact_output_preview_path(summary)
+        if preview_path is not None:
+            try:
+                preview = _read_json(preview_path)
+            except Exception as exc:
+                lines.append("")
+                lines.append(f"Best output preview failed to load: {exc}")
+            else:
+                lines.append("")
+                lines.append("Best output preview")
+                for key in [
+                    "count",
+                    "bytes",
+                    "min",
+                    "max",
+                    "mean",
+                    "std",
+                    "l2_norm",
+                    "nonzero_count",
+                ]:
+                    if key in preview:
+                        lines.append(f"{key}: {preview.get(key)}")
+                first_values = preview.get("first_values")
+                if isinstance(first_values, list):
+                    lines.append(f"first_values: {first_values}")
+                preview_validation = preview.get("validation")
+                if isinstance(preview_validation, dict) and preview_validation:
+                    lines.append(f"preview_validation: {json.dumps(preview_validation, ensure_ascii=True)}")
+
+        if isinstance(payload, dict) and "evaluations" in payload:
+            lines.append("")
+            lines.append(f"Loaded evaluations: {len(payload.get('evaluations') or [])}")
+        return "\n".join(lines)
+
+    def _format_results_payload(self, payload: Any) -> str:
+        if isinstance(payload, str):
+            return payload
+        if isinstance(payload, dict):
+            summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else payload
+            if (
+                isinstance(summary, dict)
+                and str(summary.get("workflow", "")).strip() == "filip_original"
+                and str(summary.get("filip_mode", "")).strip() == "exact_reference"
+            ):
+                return self._format_exact_results_payload(payload if isinstance(payload, dict) else {}, summary)
+            return json.dumps(payload, indent=2, ensure_ascii=True)
+        return json.dumps(payload, indent=2, ensure_ascii=True)
+
     def _set_results_text(self, payload: Any) -> None:
         self.results_text.delete("1.0", "end")
-        if isinstance(payload, str):
-            self.results_text.insert("end", payload)
-        else:
-            self.results_text.insert("end", json.dumps(payload, indent=2, ensure_ascii=True))
+        self.results_text.insert("end", self._format_results_payload(payload))
+
+    def _show_best_exact_output(self) -> None:
+        summary: Dict[str, Any] = {}
+        if isinstance(self.latest_optimization_data, dict) and isinstance(self.latest_optimization_data.get("summary"), dict):
+            summary = self.latest_optimization_data.get("summary") or {}
+        elif self.last_result_dir is not None and (self.last_result_dir / "summary.json").exists():
+            try:
+                summary = _read_json(self.last_result_dir / "summary.json")
+            except Exception as exc:
+                messagebox.showerror("Load failed", str(exc))
+                return
+        if not summary:
+            messagebox.showwarning("No exact results", "Load an exact Filip run first.")
+            return
+        preview_path = self._best_exact_output_preview_path(summary)
+        if preview_path is None:
+            messagebox.showwarning("No output preview", "This run does not expose saved numerical outputs.")
+            return
+        try:
+            preview = _read_json(preview_path)
+        except Exception as exc:
+            messagebox.showerror("Load failed", str(exc))
+            return
+        self._set_results_text(preview)
+        self.status_var.set(f"Loaded exact output preview: {preview_path.name}")
 
     def _apply_template(self) -> None:
         tpl = TEMPLATES.get(self.template_var.get())
@@ -1354,6 +1538,17 @@ class AutotuneGui(tk.Tk):
             "--filip-mode",
             self.workflow_filip_mode_var.get().strip() or "portable_sweep",
         ]
+        filip_modfem_dir = self.workflow_filip_modfem_var.get().strip()
+        if filip_modfem_dir:
+            args.extend(["--filip-modfem-dir", filip_modfem_dir])
+        filip_input_override = self.workflow_filip_input_override_var.get().strip()
+        if filip_input_override:
+            args.extend(["--filip-input-override", filip_input_override])
+        if bool(self.workflow_filip_dump_launch_var.get()):
+            args.append("--filip-dump-launch-artifacts")
+        replay_dump_root = self.workflow_filip_replay_dump_root_var.get().strip()
+        if replay_dump_root:
+            args.extend(["--filip-replay-dump-root", replay_dump_root])
         extra = self.workflow_extra_text.get("1.0", "end").strip()
         if extra:
             try:
@@ -1366,6 +1561,8 @@ class AutotuneGui(tk.Tk):
         spec = WORKFLOWS.get(self.workflow_var.get(), {})
         filip_case = self.workflow_filip_case_var.get().strip() or "prism_pair"
         filip_mode = self.workflow_filip_mode_var.get().strip() or "portable_sweep"
+        replay_dump_root = self.workflow_filip_replay_dump_root_var.get().strip()
+        dump_launch = bool(self.workflow_filip_dump_launch_var.get())
         self.workflow_filip_case_note_var.set(FILIP_CASE_DESCRIPTIONS.get(filip_case, ""))
         self.workflow_filip_mode_note_var.set(FILIP_MODE_DESCRIPTIONS.get(filip_mode, ""))
         desc = spec.get("description", "")
@@ -1374,9 +1571,40 @@ class AutotuneGui(tk.Tk):
             mode_extra = FILIP_MODE_DESCRIPTIONS.get(filip_mode, "")
             if extra or mode_extra:
                 desc = f"{desc} Selected case: {extra} Selected mode: {mode_extra}"
+            if filip_mode == "exact_reference":
+                exact_bits: List[str] = []
+                if dump_launch:
+                    exact_bits.append("OpenCL launch dumps enabled")
+                if replay_dump_root:
+                    exact_bits.append(f"Metal replay root: {replay_dump_root}")
+                if exact_bits:
+                    desc = f"{desc} Exact extras: {'; '.join(exact_bits)}."
         self.workflow_desc_var.set(desc)
         script, args = self._workflow_command()
         self.workflow_preview_var.set(f"Command preview: python3 {script} {args}")
+
+    def _browse_workflow_filip_modfem(self) -> None:
+        initial_dir = self.workflow_filip_modfem_var.get().strip() or str(ROOT)
+        selected = filedialog.askdirectory(initialdir=initial_dir, title="Select Filip mod_2022 directory")
+        if selected:
+            self.workflow_filip_modfem_var.set(selected)
+
+    def _browse_workflow_filip_input_override(self) -> None:
+        raw_initial = self.workflow_filip_input_override_var.get().strip()
+        initial_dir = str(Path(raw_initial).expanduser().resolve().parent) if raw_initial else str(ROOT)
+        selected = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            title="Select input_interactive override",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if selected:
+            self.workflow_filip_input_override_var.set(selected)
+
+    def _browse_workflow_filip_replay_dump_root(self) -> None:
+        initial_dir = self.workflow_filip_replay_dump_root_var.get().strip() or str(ROOT)
+        selected = filedialog.askdirectory(initialdir=initial_dir, title="Select OpenCL exact replay dump root")
+        if selected:
+            self.workflow_filip_replay_dump_root_var.set(selected)
 
     def _on_workflow_device_context_changed(self) -> None:
         self._refresh_workflow_description()
