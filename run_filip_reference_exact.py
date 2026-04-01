@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt  # type: ignore
 from analysis.filip_article_plots import _estimate_rw_bytes, _estimate_share, _roofline_peaks_for_backend
 from device_resolution import resolve_device_index
 from optimization.problems import FemParametricProblem, FemParametricProblemConfig
+from scripts.export_filip_replay_inputs import export_replay_input_bundle
 
 
 VARIANT_ORDER = ["qss", "sqs", "ssq"]
@@ -278,6 +279,34 @@ def _require_path(path: Path, description: str) -> Path:
     if not path.exists():
         raise SystemExit(f"Missing {description}: {path}")
     return path
+
+
+def _maybe_export_replay_input_bundle(
+    *,
+    enabled: bool,
+    include_expected_output: bool,
+    source_root: Path | None,
+    out_dir: Path,
+) -> dict[str, Any]:
+    if not bool(enabled):
+        return {}
+    if source_root is None:
+        raise SystemExit("Replay input export requires OpenCL launch dumps, but no launch_dumps root was produced.")
+    source_root = _require_path(source_root, "OpenCL launch_dumps root for replay input export")
+    bundle_root = out_dir / "replay_inputs_bundle"
+    manifest = export_replay_input_bundle(
+        src=source_root,
+        out=bundle_root,
+        include_expected_output=bool(include_expected_output),
+    )
+    return {
+        "available": True,
+        "bundle_root": str(manifest.get("bundle_root", bundle_root)),
+        "manifest_path": str(manifest.get("manifest_path", bundle_root / "replay_bundle_manifest.json")),
+        "include_expected_output": bool(manifest.get("include_expected_output", include_expected_output)),
+        "total_options_exported": int(manifest.get("total_options_exported", 0)),
+        "total_bytes_copied": int(manifest.get("total_bytes_copied", 0)),
+    }
 
 
 def _kernel_src(mod_dir: Path, variant: str) -> Path:
@@ -1985,6 +2014,8 @@ def main() -> None:
     ap.add_argument("--workgroup-size", type=int, default=0, help="Metal exact-style port only. 0 = prefer 64 or nearest supported.")
     ap.add_argument("--skip-build", action="store_true")
     ap.add_argument("--dump-launch-artifacts", action="store_true", help="OpenCL exact only: dump packed launch buffers for later Metal replay.")
+    ap.add_argument("--export-replay-inputs", action="store_true", help="OpenCL exact only: export a compact replay_inputs_bundle with just the input-side files needed for deterministic Metal replay.")
+    ap.add_argument("--export-replay-include-expected-output", action="store_true", help="OpenCL exact only: include el_data_out.bin in replay_inputs_bundle for OpenCL-vs-Metal validation.")
     ap.add_argument("--replay-dump-root", default="", help="Metal exact only: path to OpenCL launch_dumps root or an exact output dir that contains it.")
     ap.add_argument("--verify-output-tol", type=float, default=1e-5, help="Metal replay only: max abs diff tolerance against dumped OpenCL outputs.")
     ap.add_argument("--limit-option-rows", type=int, default=0, help=argparse.SUPPRESS)
@@ -2158,7 +2189,7 @@ def main() -> None:
         print(f"out dir            : {out_dir}")
 
         built_arches: dict[str, Path] = {}
-        dump_launch_root = (out_dir / "launch_dumps") if bool(args.dump_launch_artifacts) else None
+        dump_launch_root = (out_dir / "launch_dumps") if (bool(args.dump_launch_artifacts) or bool(args.export_replay_inputs)) else None
         numerical_outputs_root = dump_launch_root if dump_launch_root is not None else (out_dir / "numerical_outputs")
         records = []
         eval_counter = 0
@@ -2188,6 +2219,13 @@ def main() -> None:
                 dump_launch_root=dump_launch_root,
             )
             records.extend(case_records)
+
+        replay_input_bundle = _maybe_export_replay_input_bundle(
+            enabled=bool(args.export_replay_inputs),
+            include_expected_output=bool(args.export_replay_include_expected_output),
+            source_root=dump_launch_root,
+            out_dir=out_dir,
+        )
 
         case_csvs = _write_exact_case_csvs(out_dir, records, backend="opencl")
         combined_csv = out_dir / "csv" / "result_filip_original__opencl.csv"
@@ -2232,6 +2270,7 @@ def main() -> None:
             "comparison_note": "This mode executes Filip's original OpenCL path and records native 'internal' timings from the original CSV output.",
             "out_dir": str(out_dir),
             "launch_dumps_root": str(dump_launch_root) if dump_launch_root is not None else "",
+            "replay_input_bundle": replay_input_bundle,
             "numerical_outputs": _exact_numerical_output_summary(
                 records=records,
                 root=numerical_outputs_root,
@@ -2239,7 +2278,11 @@ def main() -> None:
                 note=(
                     "Saved per-option OpenCL output buffers and JSON previews."
                     if dump_launch_root is None
-                    else "Per-option OpenCL outputs are available inside launch_dumps together with full launch artifacts."
+                    else (
+                        "Per-option OpenCL outputs are available inside launch_dumps together with full launch artifacts."
+                        if not replay_input_bundle
+                        else "Per-option OpenCL outputs are available inside launch_dumps. A compact replay_inputs_bundle was also exported for deterministic Metal replay."
+                    )
                 ),
             ),
         }

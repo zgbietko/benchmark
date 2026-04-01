@@ -427,6 +427,10 @@ def _filip_exact_args(args: argparse.Namespace) -> list[str]:
         out += ["--input-override", str(args.filip_input_override).strip()]
     if bool(getattr(args, "filip_dump_launch_artifacts", False)):
         out += ["--dump-launch-artifacts"]
+    if bool(getattr(args, "filip_export_replay_inputs", False)):
+        out += ["--export-replay-inputs"]
+    if bool(getattr(args, "filip_export_replay_include_expected_output", False)):
+        out += ["--export-replay-include-expected-output"]
     if str(getattr(args, "filip_replay_dump_root", "")).strip():
         out += ["--replay-dump-root", str(args.filip_replay_dump_root).strip()]
     return out
@@ -843,6 +847,8 @@ def main() -> None:
     ap.add_argument("--filip-modfem-dir", default="")
     ap.add_argument("--filip-input-override", default="")
     ap.add_argument("--filip-dump-launch-artifacts", action="store_true")
+    ap.add_argument("--filip-export-replay-inputs", action="store_true")
+    ap.add_argument("--filip-export-replay-include-expected-output", action="store_true")
     ap.add_argument("--filip-replay-dump-root", default="")
     args = ap.parse_args()
 

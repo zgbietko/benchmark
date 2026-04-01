@@ -1018,6 +1018,7 @@ class AutotuneGui(tk.Tk):
             top,
             text="Dump OpenCL launch artifacts",
             variable=self.workflow_filip_dump_launch_var,
+            command=self._refresh_workflow_description,
         ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         ttk.Label(top, text="Replay dump root").grid(row=10, column=2, sticky="w", pady=(8, 0))
@@ -1028,6 +1029,22 @@ class AutotuneGui(tk.Tk):
         ttk.Button(top, text="Browse", command=self._browse_workflow_filip_replay_dump_root).grid(
             row=10, column=5, sticky="w", padx=6, pady=(8, 0)
         )
+
+        self.workflow_filip_export_inputs_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            top,
+            text="Export compact replay inputs bundle",
+            variable=self.workflow_filip_export_inputs_var,
+            command=self._refresh_workflow_description,
+        ).grid(row=11, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+        self.workflow_filip_export_expected_output_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            top,
+            text="Include OpenCL output in replay bundle",
+            variable=self.workflow_filip_export_expected_output_var,
+            command=self._refresh_workflow_description,
+        ).grid(row=11, column=3, columnspan=3, sticky="w", pady=(8, 0))
 
         top.columnconfigure(1, weight=1)
         top.columnconfigure(5, weight=1)
@@ -1615,6 +1632,13 @@ class AutotuneGui(tk.Tk):
             lines.append(f"Note: {note}")
         if summary.get("launch_dumps_root"):
             lines.append(f"OpenCL launch dumps: {summary.get('launch_dumps_root')}")
+        replay_bundle = summary.get("replay_input_bundle") or {}
+        if isinstance(replay_bundle, dict) and replay_bundle.get("available"):
+            lines.append(f"Replay input bundle: {replay_bundle.get('bundle_root', '')}")
+            if replay_bundle.get("manifest_path"):
+                lines.append(f"Replay bundle manifest: {replay_bundle.get('manifest_path')}")
+            if replay_bundle.get("total_options_exported") is not None:
+                lines.append(f"Replay bundle options: {replay_bundle.get('total_options_exported')}")
         if summary.get("replay_dump_root"):
             lines.append(f"Replay dump root: {summary.get('replay_dump_root')}")
         if summary.get("translated_sources_root"):
@@ -1810,6 +1834,16 @@ class AutotuneGui(tk.Tk):
             args.extend(["--filip-input-override", filip_input_override])
         if bool(self.workflow_filip_dump_launch_var.get()):
             args.append("--filip-dump-launch-artifacts")
+        if bool(self.workflow_filip_export_inputs_var.get()):
+            args.append("--filip-export-replay-inputs")
+            if "--filip-dump-launch-artifacts" not in args:
+                args.append("--filip-dump-launch-artifacts")
+        if bool(self.workflow_filip_export_expected_output_var.get()):
+            args.append("--filip-export-replay-include-expected-output")
+            if "--filip-export-replay-inputs" not in args:
+                args.append("--filip-export-replay-inputs")
+            if "--filip-dump-launch-artifacts" not in args:
+                args.append("--filip-dump-launch-artifacts")
         replay_dump_root = self.workflow_filip_replay_dump_root_var.get().strip()
         if replay_dump_root:
             args.extend(["--filip-replay-dump-root", replay_dump_root])
@@ -1827,6 +1861,8 @@ class AutotuneGui(tk.Tk):
         filip_mode = self.workflow_filip_mode_var.get().strip() or "portable_sweep"
         replay_dump_root = self.workflow_filip_replay_dump_root_var.get().strip()
         dump_launch = bool(self.workflow_filip_dump_launch_var.get())
+        export_inputs = bool(self.workflow_filip_export_inputs_var.get())
+        export_expected = bool(self.workflow_filip_export_expected_output_var.get())
         self.workflow_filip_case_note_var.set(FILIP_CASE_DESCRIPTIONS.get(filip_case, ""))
         self.workflow_filip_mode_note_var.set(FILIP_MODE_DESCRIPTIONS.get(filip_mode, ""))
         desc = spec.get("description", "")
@@ -1839,6 +1875,10 @@ class AutotuneGui(tk.Tk):
                 exact_bits: List[str] = []
                 if dump_launch:
                     exact_bits.append("OpenCL launch dumps enabled")
+                if export_inputs:
+                    exact_bits.append("compact replay input bundle export enabled")
+                if export_expected:
+                    exact_bits.append("replay bundle includes OpenCL output for validation")
                 if replay_dump_root:
                     exact_bits.append(f"Metal replay root: {replay_dump_root}")
                 if exact_bits:
