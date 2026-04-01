@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import struct
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 from fem_catalog import bytes_per_elem_qp, flops_per_elem_qp, operator_elapsed_multiplier, qp_cap
@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover
 class MetalRealBackend:
     device_index: int = 0
     device_name: str = "metal_gpu"
+    last_details: Dict[str, Any] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         if Metal is None:
@@ -374,6 +375,15 @@ class MetalRealBackend:
         elapsed = t1 - t0
         flops = float(n_elements * n_qp * (9 * 2))
         gflops = flops / max(elapsed, 1e-12) / 1e9
+        output = np.frombuffer(out_buf.contents().as_buffer(out.nbytes), dtype=np.float32).copy()
+        self.last_details = {
+            "kernel": "real_fem_element_kernel",
+            "n_elements": int(n_elements),
+            "n_qp": int(n_qp),
+            "dtype": str(dtype),
+            "output_count": int(output.size),
+            "output_buffer": output,
+        }
 
         return elapsed, gflops
 
@@ -413,6 +423,12 @@ class MetalRealBackend:
         bytes_moved = float(max(1, int(n_elements)) * n_qp_eff) * self._bytes_per_elem_qp(element_type, dtype)
         gflops = flops / max(elapsed, 1e-12) / 1e9
         gbps = bytes_moved / max(elapsed, 1e-12) / 1e9
+        self.last_details = {
+            **dict(self.last_details),
+            "element_type": str(element_type),
+            "operator": str(operator),
+            "n_qp_effective": int(n_qp_eff),
+        }
         return elapsed, gflops, gbps
 
     def fem_integration_tet4(

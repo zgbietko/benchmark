@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from array import array
 from collections import deque
+import csv
 from dataclasses import dataclass
 import json
 import math
@@ -378,6 +380,95 @@ def _read_jsonl(path: Path, max_points: int = 8000) -> List[Dict[str, Any]]:
                     stride *= 2
             idx += 1
     return rows
+
+
+def _prepend_env_path(env: Dict[str, str], key: str, values: List[str]) -> None:
+    merged: List[str] = []
+    for value in values + env.get(key, "").split(os.pathsep):
+        value = str(value).strip()
+        if value and value not in merged:
+            merged.append(value)
+    if merged:
+        env[key] = os.pathsep.join(merged)
+
+
+def _preferred_python_executable() -> str:
+    venv_python = ROOT / ".venv" / "bin" / "python"
+    if venv_python.exists() and os.access(venv_python, os.X_OK):
+        return str(venv_python)
+    return sys.executable
+
+
+def _build_runtime_env() -> Dict[str, str]:
+    env = dict(os.environ)
+    env["MPLCONFIGDIR"] = str(_mpl_cfg)
+    if platform.system().lower() == "linux":
+        _prepend_env_path(env, "PATH", [str(ROOT / ".venv" / "bin"), "/opt/intel/oneapi/compiler/latest/linux/bin"])
+        lib_paths = [
+            "/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin",
+            "/opt/intel/oneapi/mkl/latest/lib/intel64",
+        ]
+        _prepend_env_path(env, "LD_LIBRARY_PATH", lib_paths)
+        env.setdefault("OCL_ICD_FILENAMES", str(env.get("OCL_ICD_FILENAMES", "")))
+    return env
+
+
+def _preview_float32_binary(path: Path, max_values: int = 64) -> Dict[str, Any]:
+    raw = path.read_bytes()
+    values = array("f")
+    usable = len(raw) - (len(raw) % 4)
+    if usable > 0:
+        values.frombytes(raw[:usable])
+    data = list(values)
+    if not data:
+        return {
+            "output_path": str(path),
+            "scalar_type": "float32",
+            "count": 0,
+            "bytes": len(raw),
+            "min": 0.0,
+            "max": 0.0,
+            "mean": 0.0,
+            "std": 0.0,
+            "l2_norm": 0.0,
+            "nonzero_count": 0,
+            "first_values": [],
+            "truncated": False,
+        }
+    count = len(data)
+    total = float(sum(data))
+    mean = total / float(count)
+    sq_sum = float(sum(v * v for v in data))
+    variance = max(0.0, sq_sum / float(count) - mean * mean)
+    return {
+        "output_path": str(path),
+        "scalar_type": "float32",
+        "count": count,
+        "bytes": usable,
+        "min": float(min(data)),
+        "max": float(max(data)),
+        "mean": mean,
+        "std": math.sqrt(variance),
+        "l2_norm": math.sqrt(sq_sum),
+        "nonzero_count": sum(1 for v in data if v != 0.0),
+        "first_values": [float(v) for v in data[:max_values]],
+        "truncated": bool(count > max_values),
+    }
+
+
+def _materialize_output_csv_from_bin(bin_path: Path) -> Path:
+    raw = bin_path.read_bytes()
+    values = array("f")
+    usable = len(raw) - (len(raw) % 4)
+    if usable > 0:
+        values.frombytes(raw[:usable])
+    csv_path = bin_path.with_suffix(".csv")
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["index", "value"])
+        for idx, value in enumerate(values):
+            writer.writerow([idx, f"{float(value):.9g}"])
+    return csv_path
 
 
 def _safe_float(value: Any) -> float | None:
@@ -1117,7 +1208,7 @@ class AutotuneGui(tk.Tk):
         ttk.Button(frm_top, text="Browse", command=self._browse_result_dir).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Load as Optimization", command=self._load_selected_optimization).pack(side="left", padx=2)
         ttk.Button(frm_top, text="Load as Matrix", command=self._load_selected_matrix).pack(side="left", padx=2)
-        ttk.Button(frm_top, text="Show Best Exact Output", command=self._show_best_exact_output).pack(side="left", padx=2)
+        ttk.Button(frm_top, text="Show Best Exact Output CSV", command=self._show_best_exact_output).pack(side="left", padx=2)
 
         self.results_text = ScrolledText(self.tab_results, wrap="word")
         self.results_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -1346,6 +1437,15 @@ class AutotuneGui(tk.Tk):
         self.log_text.configure(state="disabled")
 
     @staticmethod
+    def _case_name_from_exact_key(case_key: str) -> str:
+        key = str(case_key).strip().lower()
+        if key == "prism6__laplace":
+            return "laplace_prism"
+        if key == "prism6__test":
+            return "test_prism"
+        return key or "unknown_case"
+
+    @staticmethod
     def _best_exact_output_preview_path(summary: Dict[str, Any]) -> Path | None:
         numerical = summary.get("numerical_outputs") or {}
         preview = str(numerical.get("best_output_preview", "")).strip()
@@ -1359,6 +1459,137 @@ class AutotuneGui(tk.Tk):
             if path.exists():
                 return path
         return None
+
+    @classmethod
+    def _best_exact_output_csv_path(cls, summary: Dict[str, Any], base_dir: Path | None = None) -> Path | None:
+        numerical = summary.get("numerical_outputs") or {}
+        csv_path = str(numerical.get("best_output_csv", "")).strip()
+        if csv_path:
+            path = Path(csv_path)
+            if path.exists():
+                return path
+        csv_path = str(numerical.get("example_output_csv", "")).strip()
+        if csv_path:
+            path = Path(csv_path)
+            if path.exists():
+                return path
+
+        bin_path = cls._best_exact_output_bin_path(summary, base_dir=base_dir)
+        if bin_path is not None:
+            candidate = bin_path.with_suffix(".csv")
+            if candidate.exists():
+                return candidate
+
+        best = summary.get("best_overall") or {}
+        best_case = cls._case_name_from_exact_key(str(best.get("case_key", "")))
+        best_variant = str(best.get("variant", "")).strip()
+        best_option_index = int(best.get("option_index", -1))
+        roots: List[Path] = []
+        for raw in [
+            str(numerical.get("root", "")).strip(),
+            str(summary.get("launch_dumps_root", "")).strip(),
+            str(summary.get("out_dir", "")).strip(),
+            str(base_dir) if base_dir is not None else "",
+        ]:
+            if raw:
+                path = Path(raw)
+                if path.exists() and path not in roots:
+                    roots.append(path)
+
+        if best_variant and best_option_index >= 0:
+            for root in roots:
+                candidate = root / best_case / best_variant / f"opt_{best_option_index:03d}" / "el_data_out.csv"
+                if candidate.exists():
+                    return candidate
+
+        for root in roots:
+            for candidate in root.rglob("el_data_out.csv"):
+                if candidate.is_file():
+                    return candidate
+        return None
+
+    @classmethod
+    def _best_exact_output_bin_path(cls, summary: Dict[str, Any], base_dir: Path | None = None) -> Path | None:
+        numerical = summary.get("numerical_outputs") or {}
+        output_path = str(numerical.get("best_output_path", "")).strip()
+        if output_path:
+            path = Path(output_path)
+            if path.exists():
+                return path
+
+        best = summary.get("best_overall") or {}
+        best_case = cls._case_name_from_exact_key(str(best.get("case_key", "")))
+        best_variant = str(best.get("variant", "")).strip()
+        best_option_index = int(best.get("option_index", -1))
+        roots: List[Path] = []
+        for raw in [
+            str(numerical.get("root", "")).strip(),
+            str(summary.get("launch_dumps_root", "")).strip(),
+            str(summary.get("out_dir", "")).strip(),
+            str(base_dir) if base_dir is not None else "",
+        ]:
+            if raw:
+                path = Path(raw)
+                if path.exists() and path not in roots:
+                    roots.append(path)
+
+        if best_variant and best_option_index >= 0:
+            for root in roots:
+                candidate = root / best_case / best_variant / f"opt_{best_option_index:03d}" / "el_data_out.bin"
+                if candidate.exists():
+                    return candidate
+
+        for root in roots:
+            for candidate in root.rglob("el_data_out.bin"):
+                if candidate.is_file():
+                    return candidate
+        return None
+
+    def _load_best_exact_output_preview(self, summary: Dict[str, Any]) -> Dict[str, Any] | None:
+        preview_path = self._best_exact_output_preview_path(summary)
+        if preview_path is not None:
+            preview = _read_json(preview_path)
+            preview["_preview_source"] = str(preview_path)
+            return preview
+        base_dir = self.last_result_dir if isinstance(self.last_result_dir, Path) else None
+        bin_path = self._best_exact_output_bin_path(summary, base_dir=base_dir)
+        if bin_path is None:
+            return None
+        preview = _preview_float32_binary(bin_path)
+        preview["_preview_source"] = str(bin_path)
+        return preview
+
+    def _load_best_exact_output_csv_text(self, summary: Dict[str, Any], max_rows: int = 128) -> str | None:
+        base_dir = self.last_result_dir if isinstance(self.last_result_dir, Path) else None
+        csv_path = self._best_exact_output_csv_path(summary, base_dir=base_dir)
+        if csv_path is None:
+            bin_path = self._best_exact_output_bin_path(summary, base_dir=base_dir)
+            if bin_path is None:
+                return None
+            csv_path = _materialize_output_csv_from_bin(bin_path)
+        lines = [
+            "Best exact output CSV",
+            "",
+            f"source: {csv_path}",
+            "",
+        ]
+        with csv_path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            rows = list(reader)
+        if not rows:
+            lines.append("(empty csv)")
+            return "\n".join(lines)
+
+        header = rows[0]
+        data_rows = rows[1:]
+        lines.append(",".join(header))
+        for row in data_rows[:max_rows]:
+            lines.append(",".join(row))
+        remaining = len(data_rows) - min(len(data_rows), max_rows)
+        if remaining > 0:
+            lines.append("")
+            lines.append(f"... truncated {remaining} more rows")
+        return "\n".join(lines)
 
     def _format_exact_results_payload(self, payload: Dict[str, Any], summary: Dict[str, Any]) -> str:
         lines: List[str] = []
@@ -1401,6 +1632,8 @@ class AutotuneGui(tk.Tk):
             lines.append(f"Kernel ns/unit: {best.get('score_kernel_ns_per_unit', '')}")
             if numerical.get("best_output_path"):
                 lines.append(f"Best output bin: {numerical.get('best_output_path')}")
+            if numerical.get("best_output_csv"):
+                lines.append(f"Best output csv: {numerical.get('best_output_csv')}")
             if numerical.get("best_output_preview"):
                 lines.append(f"Best output preview: {numerical.get('best_output_preview')}")
 
@@ -1420,34 +1653,54 @@ class AutotuneGui(tk.Tk):
                 if key in validation:
                     lines.append(f"{key}: {validation.get(key)}")
 
-        preview_path = self._best_exact_output_preview_path(summary)
-        if preview_path is not None:
+        preview = None
+        try:
+            preview = self._load_best_exact_output_preview(summary)
+        except Exception as exc:
+            lines.append("")
+            lines.append(f"Best output preview failed to load: {exc}")
+        if isinstance(preview, dict):
+            lines.append("")
+            lines.append("Best output preview")
+            preview_source = str(preview.get("_preview_source", "")).strip()
+            if preview_source:
+                lines.append(f"source: {preview_source}")
+            for key in [
+                "count",
+                "bytes",
+                "min",
+                "max",
+                "mean",
+                "std",
+                "l2_norm",
+                "nonzero_count",
+            ]:
+                if key in preview:
+                    lines.append(f"{key}: {preview.get(key)}")
+            first_values = preview.get("first_values")
+            if isinstance(first_values, list):
+                lines.append(f"first_values: {first_values}")
+            if "truncated" in preview:
+                lines.append(f"truncated: {bool(preview.get('truncated'))}")
+            preview_validation = preview.get("validation")
+            if isinstance(preview_validation, dict) and preview_validation:
+                lines.append(f"preview_validation: {json.dumps(preview_validation, ensure_ascii=True)}")
+        elif self._best_exact_output_bin_path(summary, base_dir=self.last_result_dir) is not None:
             try:
-                preview = _read_json(preview_path)
+                preview = self._load_best_exact_output_preview(summary)
             except Exception as exc:
                 lines.append("")
                 lines.append(f"Best output preview failed to load: {exc}")
-            else:
+
+        try:
+            csv_text = self._load_best_exact_output_csv_text(summary, max_rows=16)
+        except Exception as exc:
+            lines.append("")
+            lines.append(f"Best output csv failed to load: {exc}")
+        else:
+            if csv_text:
                 lines.append("")
-                lines.append("Best output preview")
-                for key in [
-                    "count",
-                    "bytes",
-                    "min",
-                    "max",
-                    "mean",
-                    "std",
-                    "l2_norm",
-                    "nonzero_count",
-                ]:
-                    if key in preview:
-                        lines.append(f"{key}: {preview.get(key)}")
-                first_values = preview.get("first_values")
-                if isinstance(first_values, list):
-                    lines.append(f"first_values: {first_values}")
-                preview_validation = preview.get("validation")
-                if isinstance(preview_validation, dict) and preview_validation:
-                    lines.append(f"preview_validation: {json.dumps(preview_validation, ensure_ascii=True)}")
+                lines.append(csv_text)
 
         if isinstance(payload, dict) and "evaluations" in payload:
             lines.append("")
@@ -1485,17 +1738,28 @@ class AutotuneGui(tk.Tk):
         if not summary:
             messagebox.showwarning("No exact results", "Load an exact Filip run first.")
             return
-        preview_path = self._best_exact_output_preview_path(summary)
-        if preview_path is None:
-            messagebox.showwarning("No output preview", "This run does not expose saved numerical outputs.")
-            return
         try:
-            preview = _read_json(preview_path)
+            csv_text = self._load_best_exact_output_csv_text(summary)
         except Exception as exc:
             messagebox.showerror("Load failed", str(exc))
             return
+        if csv_text is not None:
+            self._set_results_text(csv_text)
+            base_dir = self.last_result_dir if isinstance(self.last_result_dir, Path) else None
+            csv_path = self._best_exact_output_csv_path(summary, base_dir=base_dir)
+            self.status_var.set(f"Loaded exact output csv: {csv_path.name if csv_path is not None else 'csv'}")
+            return
+        try:
+            preview = self._load_best_exact_output_preview(summary)
+        except Exception as exc:
+            messagebox.showerror("Load failed", str(exc))
+            return
+        if preview is None:
+            messagebox.showwarning("No output preview", "This run does not expose saved numerical outputs.")
+            return
         self._set_results_text(preview)
-        self.status_var.set(f"Loaded exact output preview: {preview_path.name}")
+        source = str(preview.get("_preview_source", "")).strip()
+        self.status_var.set(f"Loaded exact output preview: {Path(source).name if source else 'preview'}")
 
     def _apply_template(self) -> None:
         tpl = TEMPLATES.get(self.template_var.get())
@@ -1638,24 +1902,53 @@ class AutotuneGui(tk.Tk):
 
     def _refresh_workflow_devices(self) -> None:
         backends = self._workflow_discovery_backends()
+        discovery_payload: Dict[str, Any] | None = None
         try:
-            discovery = discover_backends(backends)
-        except Exception as exc:
-            self.workflow_device_items = []
-            self.workflow_device_combo.configure(values=[])
-            self.workflow_device_choice_var.set("")
-            self.workflow_device_note_var.set(f"Device discovery failed: {type(exc).__name__}: {exc}")
-            return
+            cmd = [
+                _preferred_python_executable(),
+                str(ROOT / "run_device_discovery.py"),
+                "--backends",
+                ",".join(backends),
+                "--json",
+            ]
+            res = subprocess.run(
+                cmd,
+                cwd=str(ROOT),
+                env=_build_runtime_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15.0,
+                check=False,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                discovery_payload = json.loads(res.stdout)
+        except Exception:
+            discovery_payload = None
 
-        items = [dev for item in discovery for dev in item.to_dict().get("devices", [])]
+        if discovery_payload is not None:
+            discovery_rows = list(discovery_payload.get("backends", []))
+            items = [dev for item in discovery_rows for dev in item.get("devices", [])]
+        else:
+            try:
+                discovery = discover_backends(backends)
+                discovery_rows = [item.to_dict() for item in discovery]
+                items = [dev for item in discovery_rows for dev in item.get("devices", [])]
+            except Exception as exc:
+                self.workflow_device_items = []
+                self.workflow_device_combo.configure(values=[])
+                self.workflow_device_choice_var.set("")
+                self.workflow_device_note_var.set(f"Device discovery failed: {type(exc).__name__}: {exc}")
+                return
+
         self.workflow_device_items = items
         labels = [str(item.get("label", "")) for item in items]
         self.workflow_device_combo.configure(values=labels)
         if not items:
             reasons = []
-            for item in discovery:
-                reason = item.error or "no_devices_found"
-                reasons.append(f"{item.backend}: {reason}")
+            for item in discovery_rows:
+                reason = item.get("error") or "no_devices_found"
+                reasons.append(f"{item.get('backend', 'unknown')}: {reason}")
             self.workflow_device_choice_var.set("")
             self.workflow_device_note_var.set(
                 f"No devices found for backends: {', '.join(backends)}. "
@@ -1752,6 +2045,7 @@ class AutotuneGui(tk.Tk):
         self._reset_progress_state(script=self.current_script, args=args)
         self._append_log(f"\n=== RUN: {' '.join(cmd)} ===\n")
         self.status_var.set(f"Running: {script}")
+        runtime_env = _build_runtime_env()
 
         try:
             self.proc = subprocess.Popen(
@@ -1761,6 +2055,7 @@ class AutotuneGui(tk.Tk):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                env=runtime_env,
             )
         except Exception as e:
             self.proc = None

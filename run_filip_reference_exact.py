@@ -298,7 +298,7 @@ def _option_output_dir(root: Path, *, case_name: str, variant: str, option_index
     return root / case_name / variant / f"opt_{int(option_index):03d}"
 
 
-def _array_preview(arr: np.ndarray, *, max_values: int = 8) -> dict[str, Any]:
+def _array_preview(arr: np.ndarray, *, max_values: int = 64) -> dict[str, Any]:
     flat = np.ascontiguousarray(arr, dtype=np.float32).reshape(-1)
     if flat.size == 0:
         return {
@@ -322,6 +322,7 @@ def _array_preview(arr: np.ndarray, *, max_values: int = 8) -> dict[str, Any]:
         "l2_norm": float(np.linalg.norm(flat)),
         "nonzero_count": int(np.count_nonzero(flat)),
         "first_values": [float(v) for v in flat[:max_values].tolist()],
+        "truncated": bool(flat.size > max_values),
     }
 
 
@@ -339,6 +340,13 @@ def _write_output_preview(
     source_dump_dir: Path | None = None,
     translated_source_path: str = "",
 ) -> dict[str, Any]:
+    csv_path = output_dir / "el_data_out.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["index", "value"])
+        for idx, value in enumerate(np.ascontiguousarray(arr, dtype=np.float32).reshape(-1)):
+            writer.writerow([idx, f"{float(value):.9g}"])
+
     preview = {
         "backend": str(backend),
         "case": str(case_name),
@@ -348,6 +356,7 @@ def _write_output_preview(
         "combo_bits": "".join("1" if int(v) else "0" for v in option_row),
         "scalar_type": "float32",
         "output_path": str(output_path),
+        "csv_path": str(csv_path),
         **_array_preview(arr),
     }
     if validation is not None:
@@ -365,6 +374,7 @@ def _write_output_preview(
     return {
         "output_dir": str(output_dir),
         "output_path": str(output_path),
+        "csv_path": str(csv_path),
         "preview_path": str(preview_path),
         "validation_path": validation_path,
         "count": int(preview["count"]),
@@ -1281,6 +1291,7 @@ def _exact_numerical_output_summary(
     if root is None or not output_rows:
         return payload
     payload["example_output_dir"] = str(output_rows[0]["numerical_output"].get("output_dir", ""))
+    payload["example_output_csv"] = str(output_rows[0]["numerical_output"].get("csv_path", ""))
     payload["example_output_preview"] = str(output_rows[0]["numerical_output"].get("preview_path", ""))
     if best_overall is None:
         return payload
@@ -1295,6 +1306,7 @@ def _exact_numerical_output_summary(
         ):
             payload["best_output_dir"] = str(record["numerical_output"].get("output_dir", ""))
             payload["best_output_path"] = str(record["numerical_output"].get("output_path", ""))
+            payload["best_output_csv"] = str(record["numerical_output"].get("csv_path", ""))
             payload["best_output_preview"] = str(record["numerical_output"].get("preview_path", ""))
             payload["best_output_validation_path"] = str(record["numerical_output"].get("validation_path", ""))
             break
@@ -1738,6 +1750,7 @@ def _run_metal_exact_port(
     out_dir: Path,
     eval_path: Path,
     iter_path: Path,
+    numerical_outputs_root: Path,
     device_index: int,
     requested_device_index: int,
     profile: str,
@@ -1879,6 +1892,28 @@ def _run_metal_exact_port(
                     "violations": list(res.violations),
                     "ns_per_unit": ns_per_unit,
                 }
+                details_first = res.artifacts.get("run_details_first") if isinstance(res.artifacts, dict) else None
+                backend_last = (
+                    details_first.get("backend_last_details")
+                    if isinstance(details_first, dict) and isinstance(details_first.get("backend_last_details"), dict)
+                    else None
+                )
+                output_buffer = backend_last.get("output_buffer") if isinstance(backend_last, dict) else None
+                if output_buffer is not None:
+                    record["numerical_output"] = _save_output_artifacts_from_array(
+                        output_dir=_option_output_dir(
+                            numerical_outputs_root,
+                            case_name=case.case_name,
+                            variant=variant,
+                            option_index=option_index,
+                        ),
+                        backend="metal",
+                        case_name=case.case_name,
+                        variant=variant,
+                        option_index=option_index,
+                        option_row=list(option_row),
+                        arr=np.asarray(output_buffer, dtype=np.float32),
+                    )
                 records_portable.append(record)
                 with variant_log.open("a", encoding="utf-8") as log:
                     log.write(json.dumps(record, ensure_ascii=True) + "\n")
@@ -2022,6 +2057,7 @@ def main() -> None:
                 out_dir=out_dir,
                 eval_path=eval_path,
                 iter_path=iter_path,
+                numerical_outputs_root=numerical_outputs_root,
                 device_index=resolved_device_index,
                 requested_device_index=int(args.device_index),
                 profile=str(args.profile),
@@ -2081,12 +2117,12 @@ def main() -> None:
             "translated_sources_root": metal_meta.get("translated_sources_root"),
             "numerical_outputs": _exact_numerical_output_summary(
                 records=records,
-                root=numerical_outputs_root if metal_meta["execution_mode"] == "exact_reference_metal_replay" else None,
+                root=numerical_outputs_root,
                 best_overall=best_overall,
                 note=(
                     "Saved per-option Metal output buffers and JSON previews for replay validation."
                     if metal_meta["execution_mode"] == "exact_reference_metal_replay"
-                    else "The exact-style Metal fallback does not currently expose raw output buffers."
+                    else "Saved per-option Metal output buffers and CSV/JSON previews for the native exact-style fallback."
                 ),
             ),
             "validation_summary": _validation_summary(records),
