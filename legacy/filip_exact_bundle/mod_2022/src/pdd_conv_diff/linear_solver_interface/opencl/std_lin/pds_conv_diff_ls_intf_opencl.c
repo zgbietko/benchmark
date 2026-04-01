@@ -66,6 +66,44 @@ double t_end;
 double total_time;
 #endif
 
+
+// Master switch: GPU versus PHI - may be controlled by compilation options !!!!!
+// MUST BE COMPATIBLE WITH: tmd_ocl/tms_ocl_intf.c and tmd_ocl/tmh_ocl.h 
+
+//Opencl_HSA is for Heterogenous System Architecture with Shared Virtual Memory eg. APU
+
+#ifdef OPENCL_HSA
+	#define OPENCL_GPU
+#endif
+
+//#define OPENCL_CPU
+//#define OPENCL_GPU
+//#define OPENCL_PHI
+
+// Two important switches for different variants of the algorithm:
+// SWITCH 1: float versus double (MUST BE COMPATIBLE WITH KERNEL SWITCH!!!!)
+// data type for integration
+#define SCALAR float
+//#define SCALAR double
+
+// SWITCH 2: one_el_one_thread strategy versus one_el_one_workgroup strategy
+#define ONE_EL_ONE_THREAD
+//#define ONE_EL_ONE_WORKGROUP
+//#define ONE_EL_TWO_THREADS
+
+// SWITCH 2: Jacobian on GPU or CPU (CPU version obsolete - but may require two kernel 
+//           passes - one for computing Jacobian terms and the second for integration)
+//#define JACOBIAN_CALCULATIONS_CPU
+#define JACOBIAN_CALCULATIONS_GPU
+
+
+// Less important switches - hacks for specific versions of kernels
+// SWITCH 3: generic conv-diff (with plenty of coeffcients) versus Laplace
+//#define GENERIC_CONV_DIFF
+//#define LAPLACE
+// artificial example - coefficients constant for all integration points
+//#define TEST_SCALAR
+
 static void pdr_write_binary_dump(const char* path, const void* data, size_t nbytes)
 {
   FILE* f = fopen(path, "wb");
@@ -200,44 +238,6 @@ static void pdr_dump_output_artifacts_if_requested(
     pdr_write_binary_dump(output_path, el_data_out, el_data_out_bytes);
   }
 }
-
-
-// Master switch: GPU versus PHI - may be controlled by compilation options !!!!!
-// MUST BE COMPATIBLE WITH: tmd_ocl/tms_ocl_intf.c and tmd_ocl/tmh_ocl.h 
-
-//Opencl_HSA is for Heterogenous System Architecture with Shared Virtual Memory eg. APU
-
-#ifdef OPENCL_HSA
-	#define OPENCL_GPU
-#endif
-
-//#define OPENCL_CPU
-//#define OPENCL_GPU
-//#define OPENCL_PHI
-
-// Two important switches for different variants of the algorithm:
-// SWITCH 1: float versus double (MUST BE COMPATIBLE WITH KERNEL SWITCH!!!!)
-// data type for integration
-#define SCALAR float
-//#define SCALAR double
-
-// SWITCH 2: one_el_one_thread strategy versus one_el_one_workgroup strategy
-#define ONE_EL_ONE_THREAD
-//#define ONE_EL_ONE_WORKGROUP
-//#define ONE_EL_TWO_THREADS
-
-// SWITCH 2: Jacobian on GPU or CPU (CPU version obsolete - but may require two kernel 
-//           passes - one for computing Jacobian terms and the second for integration)
-//#define JACOBIAN_CALCULATIONS_CPU
-#define JACOBIAN_CALCULATIONS_GPU
-
-
-// Less important switches - hacks for specific versions of kernels
-// SWITCH 3: generic conv-diff (with plenty of coeffcients) versus Laplace
-//#define GENERIC_CONV_DIFF
-//#define LAPLACE
-// artificial example - coefficients constant for all integration points
-//#define TEST_SCALAR
 
 // SWITCH 4: size for  work-group
 #ifdef OPENCL_CPU
