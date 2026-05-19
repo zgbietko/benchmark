@@ -35,8 +35,16 @@ def _import_ok(name: str) -> tuple[bool, str]:
 
 def _backend_status(name: str) -> dict[str, Any]:
     try:
-        available = bool(_backend_available(name))
-        return {"available": available, "reason": ""}
+        from device_catalog import discover_backend  # type: ignore
+
+        result = discover_backend(name)
+        available = bool(result.available)
+        reason = "" if available else str(result.error or "no_devices_found")
+        return {
+            "available": available,
+            "reason": reason,
+            "device_count": len(result.devices or []),
+        }
     except Exception as exc:
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
 

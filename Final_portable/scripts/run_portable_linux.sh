@@ -15,7 +15,7 @@ FILIP_MODE="portable_sweep"
 MODFEM_DIR=""
 WITH_FIGURES=1
 WITH_ZIP=1
-WITH_APT_BOOTSTRAP=0
+WITH_APT_BOOTSTRAP="auto"
 REPLAY_ROOT="${FILIP_REPLAY_DUMP_ROOT:-}"
 
 usage() {
@@ -44,6 +44,7 @@ Options:
   --no-figures           Do not regenerate publication figures after runs
   --no-zip               Do not build ZIP after a full campaign
   --with-apt-bootstrap   Allow apt-based bootstrap on Ubuntu if env is missing
+  --no-apt-bootstrap     Force bootstrap without apt packages
   --replay-root PATH     Optional replay root for exact-related workflows in full pipeline
   -h, --help             Show help
 EOF
@@ -100,7 +101,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --with-apt-bootstrap)
-      WITH_APT_BOOTSTRAP=1
+      WITH_APT_BOOTSTRAP="yes"
+      shift
+      ;;
+    --no-apt-bootstrap)
+      WITH_APT_BOOTSTRAP="no"
       shift
       ;;
     --replay-root)
@@ -125,22 +130,82 @@ if [[ "$(uname -s)" != "Linux" ]]; then
 fi
 
 if [[ ! -f "${VENV_DIR}/bin/activate" ]]; then
+  use_apt=0
+  case "${WITH_APT_BOOTSTRAP}" in
+    yes)
+      use_apt=1
+      ;;
+    no)
+      use_apt=0
+      ;;
+    auto)
+      if command -v apt-get >/dev/null 2>&1; then
+        use_apt=1
+      fi
+      ;;
+    *)
+      use_apt=0
+      ;;
+  esac
   BOOTSTRAP_ARGS=()
-  if [[ ${WITH_APT_BOOTSTRAP} -eq 1 ]]; then
+  if [[ ${use_apt} -eq 1 ]]; then
     BOOTSTRAP_ARGS+=(--with-apt)
   fi
   echo "[INFO] Missing .portable_env -> bootstrapping portable environment"
+  set +e
   bash "${ROOT}/scripts/portable_bootstrap_linux.sh" "${BOOTSTRAP_ARGS[@]}"
+  bootstrap_rc=$?
+  set -e
+  if [[ ${bootstrap_rc} -ne 0 ]] && [[ ${use_apt} -eq 0 ]] && command -v apt-get >/dev/null 2>&1; then
+    echo "[WARN] Bootstrap without apt failed (rc=${bootstrap_rc}). Retrying with apt bootstrap..."
+    bash "${ROOT}/scripts/portable_bootstrap_linux.sh" --with-apt
+  elif [[ ${bootstrap_rc} -ne 0 ]]; then
+    echo "[ERROR] Portable bootstrap failed with code ${bootstrap_rc}." >&2
+    exit ${bootstrap_rc}
+  fi
 fi
 
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate"
 export MPLCONFIGDIR="${ROOT}/.cache/matplotlib"
 mkdir -p "${ROOT}/portable"
+set +e
 python "${ROOT}/scripts/portable_compat_report.py" \
   --json-out "${ROOT}/portable/host_compat.json" \
   --md-out "${ROOT}/portable/host_compat.md" \
   --quiet
+compat_rc=$?
+set -e
+if [[ ${compat_rc} -ne 0 ]]; then
+  echo "[WARN] Compatibility report failed (rc=${compat_rc}). Continuing with run."
+fi
+
+if [[ -f "${ROOT}/portable/host_compat.json" ]]; then
+  python - "${ROOT}/portable/host_compat.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"[WARN] Cannot read host_compat.json: {exc}")
+    raise SystemExit(0)
+
+gpu = payload.get("gpu", {}) or {}
+statuses = gpu.get("backend_status", {}) or {}
+available = [name for name, data in statuses.items() if bool((data or {}).get("available"))]
+print(f"[INFO] GPU backends available: {', '.join(available) if available else 'none'}")
+for name in ("cuda", "hip", "opencl", "metal"):
+    item = statuses.get(name, {}) or {}
+    if bool(item.get("available")):
+        continue
+    reason = str(item.get("reason") or "").strip()
+    if reason:
+        print(f"[INFO] backend={name} unavailable -> {reason}")
+PY
+fi
 
 COMMON_ARGS=(
   --profile "${PROFILE}"

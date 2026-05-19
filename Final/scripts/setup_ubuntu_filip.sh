@@ -139,6 +139,8 @@ if [[ ${WITH_APT} -eq 1 ]]; then
   fi
   run_root apt-get install -y "${BASE_PKGS[@]}"
   apt_install_if_available intel-opencl-icd intel-level-zero-gpu libze1 level-zero
+  apt_install_if_available nvidia-opencl-icd mesa-opencl-icd pocl-opencl-icd rocm-opencl-runtime
+  apt_install_if_available nvidia-cuda-toolkit
   apt_install_if_available csh
 fi
 
@@ -171,6 +173,28 @@ try:
     print("[OK] import cupy")
 except Exception as exc:
     print(f"[WARN] import cupy: {type(exc).__name__}: {exc}")
+PY
+
+python - <<'PY'
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+root = Path.cwd()
+script = root / "run_device_discovery.py"
+if not script.exists():
+    print("[WARN] run_device_discovery.py not found; skipping backend discovery report.")
+    raise SystemExit(0)
+
+print("[INFO] Backend discovery after setup:")
+cmd = [sys.executable, str(script), "--backends", "auto"]
+subprocess.run(cmd, check=False)
+print("[INFO] Toolchain summary:")
+print(f"  nvcc: {'yes' if shutil.which('nvcc') else 'no'}")
+print(f"  nvidia-smi: {'yes' if shutil.which('nvidia-smi') else 'no'}")
+print(f"  hipcc: {'yes' if shutil.which('hipcc') else 'no'}")
+print(f"  clinfo: {'yes' if shutil.which('clinfo') else 'no'}")
 PY
 
 echo "[INFO] Building native microbench libraries where toolchains are available..."

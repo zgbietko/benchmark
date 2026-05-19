@@ -87,7 +87,17 @@ if [[ ${BUILD_OPTIONAL_LIBS} -eq 1 ]]; then
 fi
 
 echo "[INFO] Preparing local portable environment in: ${VENV_DIR}"
+set +e
 bash "${ROOT}/scripts/setup_ubuntu_filip.sh" "${SETUP_ARGS[@]}"
+setup_rc=$?
+set -e
+if [[ ${setup_rc} -ne 0 ]]; then
+  echo "[ERROR] setup_ubuntu_filip.sh failed with code ${setup_rc}." >&2
+  if [[ ${WITH_APT} -eq 0 ]] && command -v apt-get >/dev/null 2>&1; then
+    echo "[ERROR] Retry with apt packages: bash scripts/portable_bootstrap_linux.sh --with-apt" >&2
+  fi
+  exit ${setup_rc}
+fi
 
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate"
@@ -99,11 +109,18 @@ fi
 
 if [[ ${RUN_COMPAT} -eq 1 ]]; then
   echo "[INFO] Writing compatibility report"
+  set +e
   python "${ROOT}/scripts/portable_compat_report.py" \
     --json-out "${ROOT}/portable/host_compat.json" \
     --md-out "${ROOT}/portable/host_compat.md" \
     --quiet
-  echo "[OK] Compatibility report: ${ROOT}/portable/host_compat.md"
+  compat_rc=$?
+  set -e
+  if [[ ${compat_rc} -eq 0 ]]; then
+    echo "[OK] Compatibility report: ${ROOT}/portable/host_compat.md"
+  else
+    echo "[WARN] Compatibility report failed (rc=${compat_rc})."
+  fi
 fi
 
 echo "[OK] Portable bootstrap finished"

@@ -140,6 +140,22 @@ def _backend_available(name: str) -> bool:
     return False
 
 
+def _backend_unavailable_reason(name: str) -> str:
+    backend = str(name or "").strip().lower()
+    if backend not in GPU_BACKENDS:
+        return "unsupported_backend"
+    try:
+        from device_catalog import discover_backend  # type: ignore
+
+        result = discover_backend(backend)
+        if bool(result.available):
+            return ""
+        reason = str(result.error or "").strip()
+        return reason or "no_devices_found"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+
+
 def _pick_backend_by_order(order: list[str]) -> str | None:
     for backend in order:
         if _backend_available(backend):
@@ -775,13 +791,18 @@ def run_gpu_benchmark(args: argparse.Namespace) -> int:
     env = _session_env(session_dir, args.profile)
     backend = _resolve_gpu_backend(args.backend, args.platform_profile, args.arch)
     if not _backend_available(backend):
+        reason = _backend_unavailable_reason(backend)
+        error_msg = f"GPU backend unavailable: {backend}"
+        if reason:
+            error_msg += f" ({reason})"
         return _session_result(
             session_dir,
             {
                 "workflow": args.workflow,
                 "target": "gpu",
                 "resolved_backend": backend,
-                "error": f"GPU backend unavailable: {backend}",
+                "error": error_msg,
+                "backend_unavailable_reason": reason,
                 "exit_code": 1,
             },
         )
@@ -948,13 +969,18 @@ def run_gpu_real_kernels(args: argparse.Namespace) -> int:
     env = _session_env(session_dir, args.profile)
     backend = _resolve_gpu_backend(args.backend, args.platform_profile, args.arch)
     if not _backend_available(backend):
+        reason = _backend_unavailable_reason(backend)
+        error_msg = f"GPU backend unavailable: {backend}"
+        if reason:
+            error_msg += f" ({reason})"
         return _session_result(
             session_dir,
             {
                 "workflow": args.workflow,
                 "target": "gpu",
                 "resolved_backend": backend,
-                "error": f"GPU backend unavailable: {backend}",
+                "error": error_msg,
+                "backend_unavailable_reason": reason,
                 "exit_code": 1,
             },
         )
