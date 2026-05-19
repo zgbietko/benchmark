@@ -1,0 +1,49 @@
+KC - conv_diff - uruchomić na Terze, przeprowadzic testy skalowalności na Terze dla zadań 
+      - diff_in_box -> std
+      - diff_in_box -> dg
+   - conv_diff - napisać i uruchomić obsługę wejścia/wyjścia z libconfig
+   - conv_diff - napisać, uruchomić, przeprowadzić testy poprawności i skalowalności
+                 dla zadania konwekcji (fala?, pagórek?, inne?)
+
+KM - conv_diff - dla tych samych zadań co powyżej uruchomić i przetestować dla siatek
+                 czworościennych i hybrydowych
+
+
+PC - status katalogu meshes
+      - opis siatek
+      - opis flag warunku brzegowego
+      - opis materiałów
+
+1. MOD_FEM documentation
+   - Theory manual
+   - User's guide
+      - installation
+      - running examples
+
+2. MPI
+
+- MPI code creation process should be tested (currently builds only MOD_FEM_ns_supg_prism_std)
+
+- MPI documentation should be created (e.g. use of mpicc instead of gcc or icc, etc.)
+
+- two options for MPI code should exist - mmpd_adapter+metis/parmetis + mmpd_prism+ddd_manager
+
+- where possible "target names" are specified? (no information in documantation, no in example config files) 
+
+- MPI targets should be different than non-MPI targets 
+
+3. CMake
+
+- C, C++ and other options should be made configurable from main Platform file
+
+- C options should be listed on summary panel
+
+- what happened to -lstdc++ option?/* interface for all approximation modules */
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WHAT IS THAT?????????????????????????
+in apd_std_lin/aps_std_lin_intf.c !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// moved to local header where we redifne some constants
+//#include "aph_intf.h"
+
+#include "uth_intf.h"

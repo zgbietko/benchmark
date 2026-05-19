@@ -1,0 +1,44 @@
+# C compiler
+#CC = gcc
+CC = icc
+
+# C++ compiler
+#CPPC = g++
+CPPC = icpc
+
+# Loader (to link with Fortran libraries)
+#LD = g++
+LD = icpc
+
+# C++ Loader (to link with pardiso solver)
+# LDPP = icpc 
+LDPP = icpc
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/opt/intel/composerxe/mkl/include -I/opt/intel/opencl/include -I/opt/intel/opencl-1.2-sdk-4.6.0.178/include -I/opt/intel/vtune_amplifier_xe/include -I$(HOME)/local/include -I$(HOME)/local/include/boost
+
+# Standard and/or local libraries
+LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -L/opt/intel/opencl-1.2-4.5.0.8/lib64 -L/opt/intel/vtune_amplifier_xe/lib64 -L$(HOME)/local/lib -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -fopenmp -lpthread -lboost_regex -lboost_system -lboost_filesystem -lconfig -L/opt/intel/opencl/lib64/ -lOpenCL -lm -littnotify
+# sequential MKL version
+#LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lboost_regex -lboost_system -lboost_filesystem -lconfig -L/opt/AMDAPP/lib/x86_64/ -lOpenCL -lm
+
+
+# C optimization and other flags
+
+CFL =  -O3 -DMULTITHREADED -DOPENCL_PHI -DTEST_SCALAR
+#CFL = -O3 -lstdc++ -openmp
+
+# Loader optimization and other flags
+LDFL = -O3 -DMULTITHREADED -DOPENCL_PHI -DTEST_SCALAR
+#LDFL = -O3 -openmp
+
+

@@ -1,0 +1,7 @@
+
+export MOD_FEM_DIR=/home/krzysztof/modular_fem_code/modular_fem_code_2009/
+export MOD_FEM_ARCH=amd_mpicc_mkl_seq 
+
+
+mpiexec -np 3 xterm -sb -sl 10000 -e gdb $MOD_FEM_DIR/bin/$MOD_FEM_ARCH/MFEM_conv_diff_prism_dg_krb_mpi -q -x gdb_file
+

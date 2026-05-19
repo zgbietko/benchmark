@@ -1,0 +1,38 @@
+# for LINUX:
+# add libraries: -llapack -lblas 
+# or ../lib/lapack_linux.a ../lib/blas_linux.a 
+
+# C compiler
+CC = gcc
+
+# C++ compiler
+CPPC = g++
+
+# Loader (to link with Fortran libraries)
+LD = g++
+
+# C++ Loader (to link with pardiso solver)
+LDPP = g++
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/opt/intel/oneapi/mkl/latest/include -I/usr/local/cuda/include -I/usr/include/boost -I/opt/AMDAPPSDK-2.9-1/include/ -I/opt/AMDAPPSDK-3.0-0-Beta/include/ -I/usr/local/include
+
+# Standard and/or local libraries
+LIB = -L$(MOD_FEM_OBJ_DIR) -L/opt/intel/oneapi/mkl/latest/lib/intel64 -L/usr/local/lib -L/usr/local/cuda/lib64 -L/usr/lib/x86_64-linux-gnu/ -L/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -lOpenCL -lboost_regex -lboost_system -lboost_filesystem -lconfig
+
+# C optimization and other flags
+#CFL =  -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -Wconversion
+CFL = -O3
+
+# Loader optimization and other flags
+#LDFL = -g
+LDFL = -O3

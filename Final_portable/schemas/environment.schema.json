@@ -1,0 +1,4 @@
+{
+  "type": "object",
+  "required": ["timestamp", "hostname", "system", "architecture", "cpu_model", "backend", "python_version", "environment_hash"]
+}

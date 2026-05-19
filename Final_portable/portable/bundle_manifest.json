@@ -1,0 +1,13 @@
+{
+  "source_root": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final",
+  "generated_at": "2026-05-14T09:44:37.644190",
+  "bundle_type": "portable_linux",
+  "entrypoint": "LAUNCH_PORTABLE.sh",
+  "project_label": "Final_portable",
+  "copied_optional_paths": [],
+  "notes": [
+    "Portable bundle keeps Final workflow parity wherever the target Linux host provides matching runtime prerequisites.",
+    "GPU drivers/runtime must exist on the target Linux host.",
+    "Exact Linux/OpenCL assets were not bundled because the historical filip_exact_bundle source contains unreadable files on this host; provide a healthy mod_2022 via --modfem-dir when needed."
+  ]
+}

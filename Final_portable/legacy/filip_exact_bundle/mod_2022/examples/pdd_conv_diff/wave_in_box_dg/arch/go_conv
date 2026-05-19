@@ -1,0 +1,2 @@
+$PHP_FEM_DIR/bin/pvm_run_debug -np 4 $PHP_FEM_DIR/bin/PHP_FEM_cdpb_pvm_$PHP_FEM_ARCH $PHP_FEM_DIR/examples/data_conv_x/gdb_file
+

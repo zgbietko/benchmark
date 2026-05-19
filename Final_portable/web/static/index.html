@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Final Panel WWW</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">apple_microbench_variant2_streamfix / Final</div>
+        <h1>Panel WWW kampanii doktorskiej</h1>
+        <p class="sub">Jeden ekran do uruchamiania kampanii, śledzenia postępu i przeglądania finalnych figur. Najpierw widać stan platformy, exact/replay i najważniejsze wykresy, a dopiero niżej szczegóły techniczne.</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="stopJobBtn" class="btn btn-secondary">Stop</button>
+        <button id="expandSectionsBtn" class="btn btn-secondary">Rozwiń sekcje</button>
+        <button id="collapseSectionsBtn" class="btn btn-secondary">Zwiń sekcje</button>
+        <button id="refreshStateBtn" class="btn btn-secondary">Odśwież</button>
+      </div>
+    </header>
+
+    <section id="jobBanner" class="job-banner hidden"></section>
+
+    <section class="card launchpad-panel">
+      <div class="panel-header">
+        <div>
+          <div class="eyebrow">Główne akcje</div>
+          <h2>Co chcemy dziś uruchomić?</h2>
+        </div>
+      </div>
+      <div id="actionCards" class="action-card-grid">
+        <article class="action-card" data-group-id="benchmarks">
+          <div class="action-card-top">
+            <div>
+              <div class="eyebrow">Pakiet 1</div>
+              <h3>Benchmarki platformy</h3>
+            </div>
+            <div class="action-status" id="groupStatus-benchmarks">Brak danych</div>
+          </div>
+          <p>CPU i GPU microbenchmarki, roofline, przepustowość pamięci oraz opóźnienia L1/L2/L3/TLB.</p>
+          <div class="action-scope">Kroki: CPU benchmark, GPU benchmark</div>
+          <div class="action-scope">CPU limit: <strong id="groupCpuLimit-benchmarks">auto</strong></div>
+          <div class="action-progress">
+            <div class="action-progress-label">
+              <span id="groupText-benchmarks">oczekuje</span>
+              <span id="groupPct-benchmarks">0%</span>
+            </div>
+            <div class="node-progress-bar"><div class="node-progress-fill" id="groupFill-benchmarks"></div></div>
+          </div>
+          <div class="button-row">
+            <button id="runBenchmarksBtn" class="btn btn-primary">Uruchom benchmarki</button>
+          </div>
+        </article>
+
+        <article class="action-card" data-group-id="real_kernels">
+          <div class="action-card-top">
+            <div>
+              <div class="eyebrow">Pakiet 2</div>
+              <h3>Real kernels</h3>
+            </div>
+            <div class="action-status" id="groupStatus-real_kernels">Brak danych</div>
+          </div>
+          <p>Jądra pośrednie między mikrobenchmarkami a kodem aplikacyjnym, plus testy ścieżek akceleracji AI (GPU i runtime AI), używane do walidacji modelu roofline i klasyfikacji bottlenecków.</p>
+          <div class="action-scope">Kroki: CPU real kernels, GPU real kernels, AI acceleration</div>
+          <div class="action-scope">CPU limit: <strong id="groupCpuLimit-real_kernels">auto</strong></div>
+          <div class="action-progress">
+            <div class="action-progress-label">
+              <span id="groupText-real_kernels">oczekuje</span>
+              <span id="groupPct-real_kernels">0%</span>
+            </div>
+            <div class="node-progress-bar"><div class="node-progress-fill" id="groupFill-real_kernels"></div></div>
+          </div>
+          <div class="button-row">
+            <button id="runRealKernelsBtn" class="btn btn-primary">Uruchom real kernels</button>
+          </div>
+        </article>
+
+        <article class="action-card" data-group-id="filip_test">
+          <div class="action-card-top">
+            <div>
+              <div class="eyebrow">Pakiet 3</div>
+              <h3>Test Filipa</h3>
+            </div>
+            <div class="action-status" id="groupStatus-filip_test">Brak danych</div>
+          </div>
+          <p>Walidacja FEM oraz kampania aplikacyjna: pełny sweep, autotuning, Firefly i przygotowanie materiału do porównania exact/replay.</p>
+          <div class="action-scope">Kroki: FEM option validation, portable sweep, autotuning, Firefly</div>
+          <div class="action-scope">CPU limit: <strong id="groupCpuLimit-filip_test">auto</strong></div>
+          <div class="action-progress">
+            <div class="action-progress-label">
+              <span id="groupText-filip_test">oczekuje</span>
+              <span id="groupPct-filip_test">0%</span>
+            </div>
+            <div class="node-progress-bar"><div class="node-progress-fill" id="groupFill-filip_test"></div></div>
+          </div>
+          <div class="button-row">
+            <button id="runFilipTestBtn" class="btn btn-primary">Uruchom test Filipa</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="control-grid card">
+      <div class="control-block">
+        <h2>Ustawienia podstawowe</h2>
+        <div class="field-row compact-grid">
+          <label>
+            Backend
+            <select id="backendInput"></select>
+            <span id="backendAvailabilityHint" class="field-help"></span>
+          </label>
+          <label>
+            Tryb benchmarków
+            <select id="benchmarkModeInput"></select>
+            <span class="field-help">`standard` do porównań między platformami, `extended` do diagnostyki architektury.</span>
+          </label>
+          <label>
+            Platform profile
+            <select id="platformProfileInput"></select>
+          </label>
+          <label>
+            Dostępne urządzenie
+            <select id="deviceChoiceInput"></select>
+            <span id="deviceSelectionHint" class="field-help">Automatyczny dobór urządzenia.</span>
+            <input id="deviceIndexInput" type="hidden" value="0">
+          </label>
+          <label>
+            Filip case
+            <select id="filipCaseInput"></select>
+          </label>
+        </div>
+        <div class="field-row compact-grid cpu-slider-grid">
+          <label class="slider-field">
+            Benchmarki: rdzenie CPU
+            <input id="benchmarksCpuThreadsInput" type="range" min="1" max="1" step="1" value="1">
+            <span class="field-help" id="benchmarksCpuThreadsLabel">1 / 1</span>
+          </label>
+          <label class="slider-field">
+            Real kernels: rdzenie CPU
+            <input id="realKernelsCpuThreadsInput" type="range" min="1" max="1" step="1" value="1">
+            <span class="field-help" id="realKernelsCpuThreadsLabel">1 / 1</span>
+          </label>
+          <label class="slider-field">
+            Test Filipa: rdzenie CPU
+            <input id="filipCpuThreadsInput" type="range" min="1" max="1" step="1" value="1">
+            <span class="field-help" id="filipCpuThreadsLabel">1 / 1</span>
+          </label>
+        </div>
+        <div class="slider-meta-note" id="cpuTopologyHint">Topologia CPU: wykrywanie...</div>
+        <details class="advanced">
+          <summary>Parametry rozszerzone i walidacja exact/replay</summary>
+          <label class="full-width">
+            Replay dump root
+            <input id="replayRootInput" type="text" placeholder="Opcjonalne. Na macOS potrzebne do exact/replay.">
+          </label>
+          <div class="field-row compact-grid advanced-grid">
+            <label>Powtórzenia<input id="repeatsInput" type="number" min="1" step="1" value="5"></label>
+            <label>Real runs<input id="realRunsInput" type="number" min="1" step="1" value="5"></label>
+            <label>Trials<input id="trialsInput" type="number" min="1" step="1" value="256"></label>
+            <label>Population<input id="populationInput" type="number" min="1" step="1" value="24"></label>
+            <label>Iterations<input id="iterationsInput" type="number" min="1" step="1" value="40"></label>
+            <label>Validation elements<input id="validationElementsInput" type="number" min="1" step="1" value="16384"></label>
+            <label>Validation n_qp<input id="validationQpInput" type="number" min="1" step="1" value="6"></label>
+            <label>Validation WG<input id="validationWgInput" type="number" min="1" step="1" value="64"></label>
+          </div>
+          <label class="full-width">
+            Validation operators
+            <input id="validationOperatorsInput" type="text" value="laplace,test">
+          </label>
+          <label class="full-width">
+            Validation variants
+            <input id="validationVariantsInput" type="text" value="qss,sqs,ssq">
+          </label>
+          <label class="full-width">
+            Raporty profilera (po jednej ścieżce w linii)
+            <textarea id="profilerReportsInput" rows="4" placeholder="Opcjonalne ścieżki do raportów profilera"></textarea>
+          </label>
+        </details>
+      </div>
+
+      <div class="control-block">
+        <h2>Narzędzia zaawansowane</h2>
+        <details class="advanced-toolbox" open>
+          <summary>Pełna kampania i materiały do rozprawy</summary>
+          <div class="button-row spaced-top">
+            <button id="runFullBtn" class="btn btn-secondary">Uruchom pełną kampanię</button>
+            <button id="refreshSessionPlotsBtn" class="btn btn-secondary">Zbuduj wykresy zbiorcze</button>
+            <button id="refreshFilipPlotsBtn" class="btn btn-secondary">Odśwież wykresy Filipa</button>
+            <button id="buildPlotsZipBtn" class="btn btn-secondary">Zbuduj ZIP wszystkich wykresów</button>
+          </div>
+          <p class="hint">Pełna kampania przechodzi przez wszystkie etapy badawcze. Dwa środkowe przyciski odświeżają wykresy, a ostatni buduje paczkę ZIP z aktualnych wykresów globalnych i wykresów Filipa.</p>
+        </details>
+        <details class="advanced-toolbox">
+          <summary>Załadowana kampania i katalogi wyników</summary>
+          <label>
+            Załadowana kampania
+            <select id="campaignSelect"></select>
+          </label>
+          <div class="button-row spaced-top">
+            <button id="loadCampaignBtn" class="btn btn-secondary">Wczytaj kampanię</button>
+            <button id="openCampaignBtn" class="btn btn-secondary">Otwórz katalog kampanii</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="summary-strip" id="summaryStrip"></section>
+
+    <details class="card collapsible-card stage-overview-panel" data-section-key="stage-overview" open>
+      <summary class="card-summary">
+        <div>
+          <div class="eyebrow">Mapa badawcza</div>
+          <h2>Postęp etapów badawczych</h2>
+        </div>
+      </summary>
+      <div class="card-body">
+        <div id="stageOverview" class="stage-overview-grid"></div>
+      </div>
+    </details>
+
+    <section class="results-grid">
+      <details class="card collapsible-card gallery-panel" data-section-key="benchmark-plots" open>
+        <summary class="card-summary">
+          <div>
+            <div class="eyebrow">Etap 1</div>
+            <h2>Benchmarki platformy</h2>
+          </div>
+        </summary>
+        <div class="card-body">
+          <p class="hint">Najważniejsze figury opisujące platformę: przepustowość, measured roofline, hierarchię pamięci i opóźnienia cache/TLB.</p>
+          <div id="benchmarkPlots" class="global-plots"></div>
+        </div>
+      </details>
+
+      <details class="card collapsible-card gallery-panel" data-section-key="real-plots" open>
+        <summary class="card-summary">
+          <div>
+            <div class="eyebrow">Etap 2</div>
+            <h2>Real kernels i roofline</h2>
+          </div>
+        </summary>
+        <div class="card-body">
+          <p class="hint">Warstwa pośrednia między mikrobenchmarkami a kodem Filipa: kontrast memory-bound, mixed i compute-leaning workloadów oraz podgląd ścieżek akceleracji AI.</p>
+          <div id="realPlots" class="global-plots"></div>
+        </div>
+      </details>
+    </section>
+
+    <section class="results-grid">
+      <details class="card collapsible-card gallery-panel" data-section-key="filip-variant-plots" open>
+        <summary class="card-summary">
+          <div>
+            <div class="eyebrow">Etap 4</div>
+            <h2>Wykresy Filipa: warianty QSS / SQS / SSQ</h2>
+          </div>
+        </summary>
+        <div class="card-body">
+          <p class="hint">Osobne wykresy wariantów z pełnym zakresem kombinacji opcji. To jest główny widok do analizy zachowania kodu Filipa na badanej platformie.</p>
+          <div id="filipVariantPlots" class="global-plots"></div>
+        </div>
+      </details>
+
+      <details class="card collapsible-card gallery-panel" data-section-key="filip-tuning-plots" open>
+        <summary class="card-summary">
+          <div>
+            <div class="eyebrow">Etap 4</div>
+            <h2>Wykresy Filipa: strojenie i najlepsze konfiguracje</h2>
+          </div>
+        </summary>
+        <div class="card-body">
+          <p class="hint">Podgląd trajektorii autotuningu, mapy ustawień i najlepszych konfiguracji.</p>
+          <div id="filipTuningPlots" class="global-plots"></div>
+        </div>
+      </details>
+    </section>
+
+    <details class="card collapsible-card gallery-panel" data-section-key="exact-plots">
+      <summary class="card-summary">
+        <div>
+          <div class="eyebrow">Etap 5</div>
+          <h2>Walidacja exact / replay</h2>
+        </div>
+      </summary>
+      <div class="card-body">
+        <p class="hint">Tu pojawiają się figury z kroku walidacyjnego. Jeśli exact działa bez replay bundle, panel pokaże wynik fallbacku natywnego, ale w sekcji stanu będzie to wyraźnie oznaczone jako niepełny replay 1:1.</p>
+        <div id="exactPlots" class="global-plots"></div>
+      </div>
+    </details>
+
+    <details class="card collapsible-card gallery-panel" data-section-key="technical-details">
+      <summary class="card-summary">
+        <div>
+          <div class="eyebrow">Zaawansowane</div>
+          <h2>Techniczne kroki, logi i ręczne uruchamianie</h2>
+        </div>
+      </summary>
+      <div class="card-body">
+        <div class="technical-grid">
+          <aside class="step-rail">
+            <div class="step-rail-title">Wszystkie kroki techniczne</div>
+            <div id="stepRail"></div>
+          </aside>
+          <div id="detailsContent"></div>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div id="imageModal" class="image-modal hidden" aria-hidden="true">
+    <div class="image-modal-backdrop" id="imageModalBackdrop"></div>
+    <div class="image-modal-panel">
+      <div class="image-modal-header">
+        <div>
+          <div class="eyebrow">Duży podgląd</div>
+          <h3 id="imageModalTitle">Wykres</h3>
+        </div>
+        <div class="button-row">
+          <button id="imageModalOpenPath" class="btn btn-secondary">Otwórz plik</button>
+          <button id="imageModalClose" class="btn btn-secondary">Zamknij</button>
+        </div>
+      </div>
+      <div class="image-modal-body">
+        <img id="imageModalImg" alt="Duży podgląd wykresu">
+      </div>
+      <div class="image-modal-footer">
+        <code id="imageModalPath"></code>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+# cpu/benchmarks/run_bandwidth.py
+import argparse
+import ctypes as ct
+import time
+import csv
+import platform
+import sys
+from pathlib import Path
+from datetime import datetime
+import statistics as stats
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[2]  # .../apple_microbench
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+from energy import energy_measurement_supported, energy_measurement_label, read_energy_joules
+from cpu_utils import (
+    detect_cpu_model,
+    make_cpu_specific_csv_path,
+    memcopy_size_profile,
+    throughput_gbps_decimal,
+)
+
+
+def load_library():
+    """Ładuje libmicrobench.* z cpu/lib – cross-platform."""
+    system = platform.system()
+    root = ROOT
+
+    if system == "Darwin":
+        lib_name = "libmicrobench.dylib"
+    elif system == "Linux":
+        lib_name = "libmicrobench.so"
+    elif system == "Windows":
+        lib_name = "microbench.dll"
+    else:
+        raise RuntimeError(f"Nieobsługiwany system: {system}")
+
+    lib_path = root / "cpu" / "lib" / lib_name
+    if not lib_path.exists():
+        raise FileNotFoundError(f"Nie znaleziono biblioteki: {lib_path}")
+
+    return ct.CDLL(str(lib_path)), root
+
+
+def configure_functions(lib):
+    func = lib.mem_copy_kernel
+    func.argtypes = [
+        ct.POINTER(ct.c_float),
+        ct.POINTER(ct.c_float),
+        ct.c_size_t,
+    ]
+    func.restype = None
+    return func
+
+def bench_mem_copy(mem_copy_kernel, bytes_per_iter: int, iters: int):
+    n = bytes_per_iter // 4  # float32
+
+    src = np.random.rand(n).astype(np.float32)
+    dst = np.empty_like(src)
+
+    src_p = src.ctypes.data_as(ct.POINTER(ct.c_float))
+    dst_p = dst.ctypes.data_as(ct.POINTER(ct.c_float))
+
+    # rozgrzewka
+    mem_copy_kernel(dst_p, src_p, n)
+
+    energy_j = None
+    e_before = None
+    if energy_measurement_supported():
+        e_before = read_energy_joules()
+
+    t0 = time.perf_counter()
+    for _ in range(iters):
+        mem_copy_kernel(dst_p, src_p, n)
+    t1 = time.perf_counter()
+
+    if e_before is not None:
+        e_after = read_energy_joules()
+        if e_after is not None:
+            delta = e_after - e_before
+            if delta >= 0:
+                energy_j = delta
+
+    elapsed = t1 - t0
+    total_bytes = bytes_per_iter * iters
+    gbps = throughput_gbps_decimal(total_bytes, elapsed)
+
+    avg_power_w = None
+    if energy_j is not None and elapsed > 0:
+        avg_power_w = energy_j / elapsed
+
+    return {
+        "size_bytes": bytes_per_iter,
+        "bytes_per_iter": bytes_per_iter,
+        "iters": iters,
+        "elapsed_s": elapsed,
+        "gbps": gbps,
+        "throughput_unit": "GB/s",
+        "energy_j": energy_j,
+        "power_w": avg_power_w,
+        "avg_power_w": avg_power_w,
+    }
+
+
+def collect_system_metadata():
+    return {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "system": platform.system(),
+        "node": platform.node(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "arch": platform.machine(),
+        "processor": platform.processor(),
+        "cpu_model": detect_cpu_model(),
+        "python_version": platform.python_version(),
+    }
+
+
+def write_result_to_csv(
+    csv_path: Path,
+    result: dict,
+    meta: dict,
+    benchmark_name: str,
+    write_header: bool,
+):
+    row = {
+        **meta,
+        "benchmark": benchmark_name,
+        **result,  # zawiera m.in. run_id, energy_j, avg_power_w
+    }
+
+    fieldnames = [
+        "timestamp",
+        "system",
+        "node",
+        "release",
+        "version",
+        "machine",
+        "arch",
+        "processor",
+        "cpu_model",
+        "python_version",
+        "benchmark",
+        "run_id",
+        "size_bytes",
+        "bytes_per_iter",
+        "iters",
+        "elapsed_s",
+        "gbps",
+        "throughput_unit",
+        "energy_j",
+        "power_w",
+        "avg_power_w",
+    ]
+
+    with csv_path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--sizes-mb",
+        type=str,
+        default="",
+        help="Lista rozmiarów w MB, np. 4,16,64,256,1024 (domyślnie: wspólny profil standard)",
+    )
+    args = ap.parse_args()
+
+    lib, root = load_library()
+    mem_copy_kernel = configure_functions(lib)
+
+    data_dir = root / "data" / "cpu"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path, arch, cpu_model, cpu_slug = make_cpu_specific_csv_path(
+        "bandwidth",
+        data_dir,
+    )
+    if csv_path.exists():
+        csv_path.unlink()  # nadpisujemy stare wyniki
+
+    meta = collect_system_metadata()
+    meta["arch"] = arch
+    meta["cpu_model"] = cpu_model
+
+    if args.sizes_mb.strip():
+        sizes_mb = [int(x) for x in args.sizes_mb.split(",") if x.strip()]
+    else:
+        sizes_mb = memcopy_size_profile("standard")
+    iters = 20
+    runs = 7
+
+    print("=== CPU memory bandwidth benchmark (mem_copy_kernel, 1T) ===")
+    print(f"runs per size : {runs}")
+    print(f"iters per run : {iters}")
+    print(f"CPU model     : {meta['cpu_model']}")
+    print(f"sizes [MB]    : {sizes_mb}")
+    print(f"Energy        : {energy_measurement_label()}")
+
+    header_written = False
+
+    for size_mb in sizes_mb:
+        bytes_per_iter = size_mb * 1024 * 1024
+        gbps_values = []
+        energy_values = []
+
+        print(f"\n--- Rozmiar: {size_mb} MB ---")
+
+        for run_id in range(runs):
+            result = bench_mem_copy(mem_copy_kernel, bytes_per_iter, iters)
+            gbps_values.append(result["gbps"])
+            if result["energy_j"] is not None:
+                energy_values.append(result["energy_j"])
+
+            write_result_to_csv(
+                csv_path,
+                {**result, "run_id": run_id},
+                meta,
+                "mem_copy_1T",
+                write_header=not header_written,
+            )
+            header_written = True
+
+            print(
+                f"run {run_id:2d}: elapsed = {result['elapsed_s']:.4f} s, "
+                f"GB/s = {result['gbps']:.2f}, "
+                f"energy = {result['energy_j'] if result['energy_j'] is not None else float('nan'):.4f} J"
+            )
+
+        mean_gbps = stats.mean(gbps_values)
+        stdev_gbps = stats.pstdev(gbps_values) if len(gbps_values) > 1 else 0.0
+        print(f"==> ŚREDNIA: {mean_gbps:.2f} GB/s, σ = {stdev_gbps:.2f} GB/s")
+
+        if energy_values:
+            mean_energy = stats.mean(energy_values)
+            stdev_energy = stats.pstdev(energy_values) if len(energy_values) > 1 else 0.0
+            print(f"    ŚREDNIA energia per run: {mean_energy:.4f} J, σ = {stdev_energy:.4f} J")
+
+    print(f"\nWszystkie runy zapisane do: {csv_path}")
+
+
+if __name__ == "__main__":
+    main()

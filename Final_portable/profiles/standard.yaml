@@ -1,0 +1,16 @@
+profile: standard
+benchmark_mode: standard
+repetitions: 5
+warmups: 1
+real_runs: 3
+trials: 64
+population: 12
+iterations: 16
+include:
+  - cpu_microbenchmarks
+  - gpu_microbenchmarks
+  - real_kernels
+  - filip_original
+  - roofline
+  - model_validation
+  - figures

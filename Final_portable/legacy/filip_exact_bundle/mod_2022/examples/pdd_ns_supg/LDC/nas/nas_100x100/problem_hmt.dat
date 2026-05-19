@@ -1,0 +1,63 @@
+/* ------------------------------------------------------------	*/
+/* IMPORTANT:                                                	*/
+/* 	- both, C and C++ style comments are supported      	*/
+/*	- ALWAYS use "." (dot) when entering flp numbers!	*/
+/*	  For ex. instead of 20, put 20.0			*/
+/*	- Use same unit system for all values!			*/
+/* ------------------------------------------------------------ */
+
+problem:
+(
+            { 
+	      /* mesh, field, materials & bc input filenames */
+	      mesh_file_in = "LDC_z_001_100x100.nas";
+	      field_file_in = "field.dmp";
+	      materials_file = "materials.dat";
+	      bc_file = "bc.dat";	      
+	      solver_file = "pardiso.dat";
+	      
+	      mesh_type = "n";
+	      
+	      /* mesh & file dump filename patterns (no extension!) */
+	      mesh_file_out = "mesh";
+	      field_file_out = "field";
+	      
+	      /* stop criterions - */
+	      /* simulation will stop whichever comes first */
+	      final_time = 10000.0; //double
+	      final_timestep = 10000; //int
+	      n_epsilon = 0.000001; //double
+	      
+	      /* delta time */
+	      timestep_length = 1.0; //double
+	      
+	      /* stop criterions for nonlin iterations - */
+	      /* will stop wichever comes first */ 
+	      max_nonl_iter = 100; //int
+	      k_epsilon = 1.0; //double
+	      
+	      /* data dumps setttings */
+	      graph_dump_intv = 0; //int
+	      full_dump_intv = 0; //int
+	      graph_dump_accu = 3; //int
+	      
+	      penalty = 1.0e6; //double
+	      
+	      reference_density = 1.0; //double // 1000=something like water (no bubbles)
+	      
+	      /* Adaptation types (adapt_type) :
+	      PDC_UNIFORM_DEREF -2 // uniform mesh refinement
+	      PDC_UNIFORM_REF   -1 // uniform mesh refinement
+	      PDC_NO_ADAPT    0 // adaptations based on the knowledge of exact solution
+	      PDC_ADAPT_EXACT 1 // adaptations based on the knowledge of exact solution
+	      PDC_ADAPT_ZZ    2 // adaptations based on Zienkiewicz-Zhu error estimate
+	      PDC_ADAPT_EXPL  3 // adaptations based on explicit residual error estimate
+	      */
+	      
+	      adapt_type = 2; //int
+	      adapt_eps = 1.0; //double
+	      adapt_ratio = 0.1; //double
+	      adapt_interval = 1; //int
+            }
+);
+

@@ -1,0 +1,4 @@
+{
+  "type": "csv",
+  "description": "Surowe wyniki benchmarku z powtórzeniami; kolumny zależą od benchmarku, ale plik musi istnieć."
+}

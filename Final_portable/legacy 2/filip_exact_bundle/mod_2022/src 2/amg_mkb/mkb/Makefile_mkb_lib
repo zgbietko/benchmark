@@ -1,0 +1,27 @@
+# Makefile for multigrid preconditioned Krylow solver based on blocks
+
+
+$(MOD_FEM_OBJ_DIR)/libmkb.a : \
+	  $(MOD_FEM_OBJ_DIR)/it_bliter_blocks.o \
+	  $(MOD_FEM_OBJ_DIR)/it_bliter_core.o \
+	  $(MOD_FEM_OBJ_DIR)/it_gmres.o \
+	  $(MOD_FEM_OBJ_DIR)/it_bliter_util.o
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/it_bliter_blocks.o \
+	  $(MOD_FEM_OBJ_DIR)/it_bliter_core.o \
+	  $(MOD_FEM_OBJ_DIR)/it_gmres.o \
+	  $(MOD_FEM_OBJ_DIR)/it_bliter_util.o
+
+$(MOD_FEM_OBJ_DIR)/it_bliter_blocks.o : it_bliter_blocks.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_blocks.c  -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/it_bliter_core.o : it_bliter_core.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_core.c  -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/it_gmres.o : it_gmres.c it_bliter.h 
+	$(CC) $(CFL) -c it_gmres.c  -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/it_bliter_util.o : it_bliter_util.c it_bliter.h 
+	$(CC) $(CFL) -c it_bliter_util.c  -o $@ $(INC)
+
+clean:
+	rm -f *.o *.a *~

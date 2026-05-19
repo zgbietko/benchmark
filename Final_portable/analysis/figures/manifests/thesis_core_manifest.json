@@ -1,0 +1,11 @@
+{
+  "figure_set": "thesis-core-v1",
+  "source_label": "fallback:20260514_095508__profile-quick",
+  "cpu_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final_portable/data/cpu",
+  "gpu_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final_portable/data/gpu",
+  "real_dirs": [
+    "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final_portable/data/real_kernels"
+  ],
+  "output_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final_portable/analysis/figures/thesis_core",
+  "figures": []
+}

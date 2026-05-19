@@ -1,0 +1,14 @@
+# Makefile for the interface between the FEM code and the PARDISO (MKL) library
+
+$(MOD_FEM_OBJ_DIR)/sil_pardiso_lib.a: \
+	$(MOD_FEM_OBJ_DIR)/sis_pardiso_intf.o
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/sis_pardiso_intf.o
+
+
+$(MOD_FEM_OBJ_DIR)/sis_pardiso_intf.o: sis_pardiso_intf.cpp \
+	$(MOD_FEM_INC_DIR)/sih_intf.h sih_pardiso.h
+	$(CPPC) $(CFL) -c sis_pardiso_intf.cpp -o $@ $(INC)
+
+clean:
+	rm -f *~ *.o *.a
+

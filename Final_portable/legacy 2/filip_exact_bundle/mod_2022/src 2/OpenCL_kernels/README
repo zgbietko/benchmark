@@ -1,0 +1,36 @@
+There are several files here and several directories, most with historical importance (for different articles).
+
+Current versions:
+apr_ocl_num_int_el_reference_prism_QSS.cl  
+apr_ocl_num_int_el_reference_tetra_QSS.cl 
+apr_ocl_num_int_el_reference_prism_SQS.cl  
+apr_ocl_num_int_el_reference_tetra_SQS.cl 
+apr_ocl_num_int_el_reference_prism_SSQ.cl  
+apr_ocl_num_int_el_reference_tetra_SSQ.cl
+
+All six were tested for conv_diff_prism_std codes and test_scalar problem.
+
+Switches (with #define):
+
+Group one - MUST BE COMPATIBLE WITH utd_util/opencl/uts_ls_intf_opencl.c!!!!!
+0. Master switch: GPU versus PHI versus CPU
+//#define CPU_OPENCL
+//#define GPU_OPENCL
+//#define PHI_OPENCL
+1. #define SCALAR - float versus double 
+   !!! has to be switched accordingly to utd_util/opencl/uts_ls_intf_opencl.c !!!
+2. #define JACOBIAN_CALCULATIONS_GPU - entries for Jacobian matrices not computed
+   based on geometry of elements, but read directly from input files
+   !!! has to be switched accordingly to utd_util/opencl/uts_ls_intf_opencl.c !!!
+3. #define LAPLACE - kernels can be used for Laplace equations 
+   #define TEST_NUM_INT - or for a testing example 
+   solved by conv_diff_prism_std codes (e.g. diff_in_box problems)
+   !!! has to be switched accordingly to utd_util/opencl/uts_ls_intf_opencl.c !!!
+4. #define WORK_GROUP_SIZE_MAX 64/16/8 - assumed work-group size
+   !!! has to be switched accordingly to utd_util/opencl/uts_ls_intf_opencl.c !!!
+
+Group two - for kernel use only
+
+
+
+

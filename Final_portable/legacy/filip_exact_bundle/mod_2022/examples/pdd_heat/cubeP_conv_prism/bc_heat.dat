@@ -1,0 +1,64 @@
+/* ------------------------------------------------------------ */
+/* IMPORTANT:                                                   */
+/*      - both, C and C++ style comments are supported          */
+/*      - ALWAYS use "." (dot) when entering numbers!           */
+/*        For ex. instead of 20, put 20.0                       */
+/*      - Use same unit system for all values!                  */
+/* ------------------------------------------------------------ */
+
+
+bc:
+(
+  /*--- BOUNDARY ---*/
+  {
+    bcnum:1; //bottom side
+    isothermal:{temp = 300.0; };
+    //radconv:{h = 20.0; eps = 0.0;};
+    //normal_heat_flux:{flux = 0.0;};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:2; //top side
+    radconv:{h = 20.0; eps = 0.0;};
+    //isothermal:{temp = 1.0; };
+    //normal_heat_flux:{flux = 0.0;};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:3;
+    //radconv:{h = 20.0; eps = 0.0;};
+    isothermal:{temp = 300.0;};
+    //normal_heat_flux:{flux = 0.0;};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:4;
+    radconv:{h = 20.0; eps = 0.0;};
+    //isothermal:{temp = 1.0;};
+    //normal_heat_flux:{flux = 100.0;};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:5;
+    radconv:{h = 20.0; eps = 0.0;};
+    //isothermal:{temp = 1.0;};
+    //normal_heat_flux:{flux = 0.0;};
+  },
+
+
+  /*--- BOUNDARY ---*/ 
+  {
+    bcnum:6;
+    radconv:{h = 20.0; eps = 0.0;};
+    //isothermal:{temp = 1.0;};
+    //normal_heat_flux:{flux = 0.0;};
+  }
+);

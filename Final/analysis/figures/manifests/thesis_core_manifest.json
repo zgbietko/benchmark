@@ -1,0 +1,84 @@
+{
+  "figure_set": "thesis-core-v1",
+  "source_label": "session:20260518_122122__profile-full",
+  "cpu_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/data/runs/20260518_121615__profile-full/cpu",
+  "gpu_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/data/runs/20260518_122122__profile-full/gpu",
+  "real_dirs": [
+    "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/data/runs/20260518_122122__profile-full/real_kernels"
+  ],
+  "output_dir": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core",
+  "figures": [
+    {
+      "figure_id": "cpu_memcpy_bandwidth_scaling",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/cpu_memcpy_bandwidth_scaling.png",
+      "filename": "cpu_memcpy_bandwidth_scaling.png",
+      "question": "Jak CPU skaluje przepustowość kopiowania pamięci względem rozmiaru i liczby wątków?",
+      "summary": "Łączy przebieg 1T/MT po rozmiarze z wykresem skalowania i sprawności.",
+      "aggregation": "median per condition, MT envelope = best median over tested thread counts"
+    },
+    {
+      "figure_id": "cpu_stream_triad_scaling",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/cpu_stream_triad_scaling.png",
+      "filename": "cpu_stream_triad_scaling.png",
+      "question": "Jak zachowuje się reprezentatywny kernel STREAM po rozmiarze i liczbie wątków?",
+      "summary": "Ogranicza rodzinę STREAM do TRIAD jako najczytelniejszego przypadku reprezentatywnego.",
+      "aggregation": "median per condition, MT envelope = best median over tested thread counts"
+    },
+    {
+      "figure_id": "cpu_peak_compute_scaling",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/cpu_peak_compute_scaling.png",
+      "filename": "cpu_peak_compute_scaling.png",
+      "question": "Jak CPU skaluje osiągany peak compute między 1T i all-core?",
+      "summary": "Zastępuje trzy osobne wykresy jedną figurą throughput + efficiency.",
+      "aggregation": "best per thread count across repeated peak-FMA runs"
+    },
+    {
+      "figure_id": "cpu_memory_latency_hierarchy",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/cpu_memory_latency_hierarchy.png",
+      "filename": "cpu_memory_latency_hierarchy.png",
+      "question": "Gdzie pojawiają się koszty przejścia między poziomami cache i translacji stron?",
+      "summary": "Scala wcześniejsze publication/debug variants do jednej finalnej figury 1x2.",
+      "aggregation": "median latency with sigma across repeated pointer-chase runs"
+    },
+    {
+      "figure_id": "gpu_microbenchmark_suite",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/gpu_microbenchmark_suite.png",
+      "filename": "gpu_microbenchmark_suite.png",
+      "question": "Jak wygląda podstawowy profil GPU: przepustowość, peak compute i latency?",
+      "summary": "Scala dwie figury bandwidth i dwa warianty pointer latency do jednego zestawu 1x3.",
+      "aggregation": "median for bandwidth/latency curves; compute panel ranks top configs by median GFLOP/s with IQR"
+    },
+    {
+      "figure_id": "platform_roofline_measured",
+      "section": "benchmarks",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/platform_roofline_measured.png",
+      "filename": "platform_roofline_measured.png",
+      "question": "Jakie są zmierzone pułapy bandwidth i compute używane dalej jako ceilings interpretacyjne?",
+      "summary": "Usuwa syntetyczny punkt AI=8 i zostawia same zmierzone sufity roofline dla CPU i GPU.",
+      "aggregation": "measured peak envelopes from microbenchmark CSV files"
+    },
+    {
+      "figure_id": "real_kernels_model_validation",
+      "section": "real_kernels",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/real_kernels_model_validation.png",
+      "filename": "real_kernels_model_validation.png",
+      "question": "Na ile real kernels zbliżają się do zmierzonych sufitów compute i bandwidth?",
+      "summary": "Centralna figura walidacyjna łącząca mikrobenchmark ceilings z realistycznymi kernelami.",
+      "aggregation": "median utilization relative to measured per-target ceiling; out-of-model points retained and marked with hatch"
+    },
+    {
+      "figure_id": "real_kernels_filip_contrast_map",
+      "section": "real_kernels",
+      "path": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final/analysis/figures/thesis_core/real_kernels_filip_contrast_map.png",
+      "filename": "real_kernels_filip_contrast_map.png",
+      "question": "Gdzie Filip-like FEM leży w przestrzeni roofline względem SpMV i GEMM?",
+      "summary": "Główna figura interpretacyjna łącząca AI, achieved GFLOP/s i measured roofline ceilings.",
+      "aggregation": "median AI and median achieved GFLOP/s per kernel/backend pair; out-of-model points retained as dedicated class"
+    }
+  ]
+}

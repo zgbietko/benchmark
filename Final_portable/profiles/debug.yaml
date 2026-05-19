@@ -1,0 +1,12 @@
+profile: debug
+benchmark_mode: standard
+repetitions: 3
+warmups: 0
+real_runs: 1
+trials: 8
+population: 4
+iterations: 2
+include:
+  - cpu_microbenchmarks
+  - real_kernels
+  - figures

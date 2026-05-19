@@ -1,0 +1,66 @@
+@article{,
+    author = "",
+    title = "",
+    journal = "",
+    year = "",
+    volume = "",
+    pages = "",
+    number = "",
+    month = "",
+    note = ""
+}
+
+@book{,
+    author = "",or,    editor = "",
+    title = "",
+    publisher = "",
+    year = "",
+    volume = "",
+    series = "",
+    address = "",
+    edition = "",
+    month = "",
+    note = ""
+}
+
+@inproceedings{,
+    author = "",
+    title = "", 
+    booktitle = "",
+    year = "",
+    editor = "",
+    pages = "",
+    organization = "",
+    publisher = "",
+    address = "",
+    month = "",
+    note = ""
+}
+
+@techreport{,
+    author = "",
+    title = "",
+    institution = "",
+    year = "",
+    type = "",
+    number = "",
+    address = "",
+    month = "",
+    note = "",
+}
+
+@inbook  @incollection{,
+    author ="",    (or editor - inbook, optional - incollection)
+    title = "", 
+    publisher = "",
+    year = "",
+    booktitle = "",   (incollection)
+    chapter ="", and/or, pages = "",  (inbook, optional - incollection)
+
+    volume = "",   (inbook)
+    series = "",   (inbook)
+    address = "",
+    edition = "",  (inbook)
+    month = "",
+    note = "",
+}

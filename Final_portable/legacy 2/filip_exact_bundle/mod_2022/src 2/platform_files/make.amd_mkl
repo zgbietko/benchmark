@@ -1,0 +1,43 @@
+# for my asus laptop with standard gcc, mpi, lapack, etc.:
+
+# C compiler
+CC = icc
+
+# C++ compiler
+CPPC = icpc
+
+# Loader 
+LD = icpc
+
+# Archiver
+AR = ar r
+
+# Ranlib (if necessary)
+# ranlib
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/opt/intel/mkl/10.2.4.032/include
+
+# Standard and/or local libraries
+#LIB =   -lmkl_lapack -lmkl_core -lmkl_intel_lp64 -lmkl_intel_thread  \
+#  -lguide -lpthread -lm -L$(MOD_FEM_OBJ_DIR)/ -L$(MOD_FEM_DIR)/lib \
+#  /usr/local/lib/libconfig.a
+
+LIB = -L$(MKLROOT)  -lmkl_lapack -lmkl_core -lmkl_intel_lp64 -lmkl_sequential  \
+  -lguide -lpthread -lm -L$(MOD_FEM_OBJ_DIR)/ -L$(MOD_FEM_DIR)/lib \
+  /usr/local/lib/libconfig.a
+
+
+# C optimization and other flags
+#CFL = -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -m64 -DWITH_ -p
+CFL = -O3  -DWITH_ 
+
+# Loader optimization and other flags
+#LDFL = -g -m64
+LDFL = -O3 

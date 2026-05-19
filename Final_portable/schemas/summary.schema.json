@@ -1,0 +1,8 @@
+{
+  "type": "csv",
+  "required_columns": [
+    "platform", "backend", "benchmark_name", "kernel_name", "problem_size", "threads", "block_size",
+    "time_mean", "time_median", "time_std", "time_min", "time_max", "repetitions", "warmup_repetitions",
+    "bandwidth_GBps", "gflops", "energy_J", "power_W", "arithmetic_intensity", "status"
+  ]
+}

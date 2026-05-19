@@ -1,0 +1,18 @@
+profile: extended
+benchmark_mode: extended
+repetitions: 7
+warmups: 2
+real_runs: 5
+trials: 128
+population: 20
+iterations: 32
+include:
+  - cpu_microbenchmarks
+  - gpu_microbenchmarks
+  - real_kernels
+  - filip_original
+  - filip_autotune
+  - filip_firefly
+  - roofline
+  - model_validation
+  - figures

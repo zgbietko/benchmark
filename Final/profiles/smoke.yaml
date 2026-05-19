@@ -1,0 +1,14 @@
+profile: smoke
+benchmark_mode: standard
+repetitions: 2
+warmups: 1
+real_runs: 1
+trials: 8
+population: 4
+iterations: 2
+include:
+  - cpu_microbenchmarks
+  - gpu_microbenchmarks
+  - real_kernels
+  - filip_original
+  - figures

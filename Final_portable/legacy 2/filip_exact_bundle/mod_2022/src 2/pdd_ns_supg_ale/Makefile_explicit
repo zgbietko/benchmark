@@ -1,0 +1,88 @@
+# Makefile for Navier-Stokes eqns with SUPG stabilization and heat convection
+
+$(MOD_FEM_OBJ_DIR)/pdl_ns_supg_lib.a : \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_util.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_time_integration.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_ls_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_paraview_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_weakform.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_problem_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc_io.o 
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/pds_ns_supg_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_util.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_time_integration.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_ls_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_paraview_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_weakform.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_problem_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc_io.o 
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_main.o : main/pds_ns_supg_main.c 
+	$(CC) $(CFL) -c main/pds_ns_supg_main.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_util.o : main/pds_ns_supg_util.c 
+	$(CC) $(CFL) -c main/pds_ns_supg_util.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_time_integration.o : \
+	time_integration/pds_ns_supg_time_integration.c 
+	$(CC) $(CFL) -c time_integration/pds_ns_supg_time_integration.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_ls_intf.o : \
+	linear_solver_interface/pds_ns_supg_ls_intf.c 
+	$(CC) $(CFL) -c linear_solver_interface/pds_ns_supg_ls_intf.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_adapt.o : \
+	adaptation/pds_ns_supg_adapt.c 
+	$(CC) $(CFL) -c adaptation/pds_ns_supg_adapt.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_io.o : \
+	input_output/pds_ns_supg_io.c 
+	$(CC) $(CFL) -c input_output/pds_ns_supg_io.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_paraview_io.o : \
+	input_output/pds_ns_supg_paraview_io.c 
+	$(CC) $(CFL) -c input_output/pds_ns_supg_paraview_io.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_weakform.o : \
+	../pdd_ns_supg/weak_formulation/pds_ns_supg_weakform.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/weak_formulation/pds_ns_supg_weakform.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_problem_io.o : \
+	../pdd_ns_supg/input_output/pds_ns_supg_problem_io.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/input_output/pds_ns_supg_problem_io.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials.o : \
+	../pdd_ns_supg/weak_formulation/pds_ns_supg_materials.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/weak_formulation/pds_ns_supg_materials.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_materials_io.o : \
+	../pdd_ns_supg/input_output/pds_ns_supg_materials_io.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/input_output/pds_ns_supg_materials_io.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc.o : \
+	../pdd_ns_supg/weak_formulation/pds_ns_supg_bc.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/weak_formulation/pds_ns_supg_bc.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_ns_supg_bc_io.o : \
+	../pdd_ns_supg/input_output/pds_ns_supg_bc_io.c 
+	$(CC) $(CFL) -c ../pdd_ns_supg/input_output/pds_ns_supg_bc_io.c \
+	-o $@ $(INC)
+
+clean:
+	rm -f *~ */*~ *.o */*.o *.a */*.a

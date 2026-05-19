@@ -1,0 +1,32 @@
+{
+  "apple": {
+    "description": "Apple Silicon + Apple GPU",
+    "arch": "apple",
+    "backend_preference": ["metal", "opencl"],
+    "all_backends": ["metal", "opencl"]
+  },
+  "nvidia": {
+    "description": "x86 + NVIDIA GPU",
+    "arch": "x86",
+    "backend_preference": ["cuda", "opencl"],
+    "all_backends": ["cuda", "opencl"]
+  },
+  "amd": {
+    "description": "x86 + AMD GPU",
+    "arch": "amd",
+    "backend_preference": ["hip", "opencl"],
+    "all_backends": ["hip", "opencl"]
+  },
+  "intel_arc": {
+    "description": "x86 + Intel Arc (OpenCL baseline)",
+    "arch": "intel",
+    "backend_preference": ["opencl"],
+    "all_backends": ["opencl"]
+  },
+  "intel_igpu": {
+    "description": "x86 + Intel iGPU (OpenCL baseline)",
+    "arch": "intel",
+    "backend_preference": ["opencl"],
+    "all_backends": ["opencl"]
+  }
+}

@@ -1,0 +1,20 @@
+profile: full_cross_platform
+benchmark_mode: extended
+repetitions: 12
+warmups: 3
+real_runs: 7
+trials: 320
+population: 32
+iterations: 48
+include:
+  - cpu_microbenchmarks
+  - gpu_microbenchmarks
+  - real_kernels
+  - fem_option_validation
+  - filip_original
+  - filip_autotune
+  - filip_firefly
+  - filip_exact_reference
+  - roofline
+  - model_validation
+  - figures

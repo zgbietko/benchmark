@@ -1,0 +1,106 @@
+# Comment lines start with '#'
+
+# Detailed explanation can be found in MKL documentation for PARDISO
+# All parameter names are the standard ones for PARDISO
+
+
+##########################################################
+# MTYPE - Matrix type
+#	1 - real and structurally symmetric (DEFAULT)
+#	2 - real and symmetric positivie definite
+#	-2 - real and symmetric indefinite
+#	11 - real and unsymmetric
+
+MTYPE 11
+
+##########################################################
+# MSGLVL - Level of messages
+#	0 - quiet (DEFAULT)
+#	1 - verbose
+
+MSGLVL 0
+
+##########################################################
+# iparm[1] - use solver defaults
+#	0 - use defaults
+#	1 - provide all parameters (DEFAULT)
+
+IPARM1 1
+
+##########################################################
+# iparm[2] - fill in reducing ordering
+#	(Explained in MKL documentation)
+#	2 (DEFAULT)
+
+IPARM2 2
+
+##########################################################
+# iparm[4] - preconditioned CGS.
+#	(Explained in MKL documentation)
+#	0 (DEFAULT)
+
+IPARM4 0
+
+##########################################################
+# iparm[8] - iterative refinement step.
+#	(Explained in MKL documentation)
+#	0 (DEFAULT)
+
+IPARM8 0
+
+##########################################################
+# iparm[10] - pivoting perturbation.
+#	(Explained in MKL documentation)
+#	13 (DEFAULT)
+
+IPARM10 13
+
+##########################################################
+# iparm[11] - scaling vectors.
+#	(Explained in MKL documentation)
+#	1 (DEFAULT)
+
+IPARM11 1
+
+##########################################################
+# iparm[13] - improved accuracy using (non-)symmetric weighted matchings.
+#	(Explained in MKL documentation)
+#	1 (DEFAULT)
+
+IPARM13 1
+
+##########################################################
+# iparm[18]
+#	(Explained in MKL documentation)
+#	-1 (DEFAULT)
+
+IPARM18 -1
+
+##########################################################
+# iparm[19] - MFlops of factorization.
+#	(Explained in MKL documentation)
+#	0 (DEFAULT)
+
+IPARM19 0
+
+##########################################################
+# iparm[21] - pivoting for symmetric indefinite matrices.
+#	(Explained in MKL documentation)
+#	1 (DEFAULT)
+
+IPARM21 1
+
+##########################################################
+# iparm[27] - matrix checker. default is 0
+#	1 - checks matrix on start
+#	0 - do not check (DEFAULT)
+
+IPARM27 0
+
+##########################################################
+# iparm[60] - version of PARDISO (in-core, out-of-core)
+#	(Explained in MKL documentation)
+#	0 (DEFAULT)
+
+IPARM60 0
+

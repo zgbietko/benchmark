@@ -1,0 +1,431 @@
+Working directory specified in command line: /home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3/
+Interactive input from file: /home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3//input_interactive.txt
+Interactive output to file: /home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3//output_interactive.txt
+
+ ModFEM ver. 1509
+
+Opening NS_SUPG problem file /home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3//problem_ns_supg.dat
+
+!Warning: CFL_control not found in problem file. Assuming defaults.
+NS_SUPG problem 10 settings :
+
+CONTROL PARAMETERS:
+	mesh_type:			n
+	mesh_file_in:			LDC_z_005_3x3.nas
+
+	field_file_in:			z
+	materials_file:			materials.dat
+	bc_file:			bc.dat
+	solver_file:			solver.dat
+
+	mesh_file_out:			mesh
+	field_file_out:			field
+
+	penalty for Dirichlet BCs:	10000000.000000
+
+	gravity:			0.000000 0.000000 0.000000
+
+	reference_temperature:		0.000000
+	reference_density:		1.000000
+	reference_length:		1.000000
+	reference_velocity:		1.000000
+
+	dynamic viscosity:		0.001000
+	Reynolds number:		1000.000000
+
+
+TIME INTEGRATION PARAMETERS:
+	type:				1
+	implicitness parameter:		1.000000
+
+	current timestep:		0
+	current time:			0.000000
+	current timestep_length:	10.000000
+	previous timestep_length:	10.000000
+
+	final time:			10000.000000
+	final timestep:			1000
+	convergence criterion type:	0
+	error tolerance (n-epsilon):	0.000001
+
+	monitoring level:		0
+
+	graph_dump_intv:		0
+	full_dump_intv:			0
+
+
+NONLINEAR SOLVER PARAMETERS:
+	type:				0
+	max_nonl_iter:			10
+	convergence criterion type:	0
+	error tolerance (k-epsilon):	0.100000
+
+	monitoring level:		0
+
+
+LINEAR SOLVER PARAMETERS:
+	type:				1
+	max_lins_iter:			100
+	convergence criterion type:	0
+	error tolerance:		0.000001
+
+	monitoring level:		2
+
+
+ADAPTATION PARAMETERS:
+	adapt_type:			2
+	adapt_interval:			10000000
+	adapt_eps:			0.000100
+	adapt_ratio:			0.200000
+
+	monitoring level:		2
+
+
+Boundary conditions configuration file:	bc.dat
+	Number of pressure pins:	2
+	Number of velocity pins:	4
+	Number of BCs:			7
+
+
+Materials configuration file:		materials.dat
+	Number of materials:		1
+
+
+
+After reading initial data.
+Mesh (number of active, maximal index):
+Elements: nrel 24, nmel 24
+Faces:    nrfa 64, nmfa 64
+Edges:    nred 57, nmed 57
+Nodes:    nrno 18, nmno 18
+
+Maximal generation level set to 5, maximal generation difference set to 1
+Opened file '/home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3//ns_supg_0.vtk' for Paraview mesh data
+
+Beginning solution of ns_supg problem
+
+
+Time integration will stop whichever comes first:
+final_time: 10000.000000
+final_timestep: 1000
+error less than time_integration_tolerance: 0.000001
+
+Assigned solver ID: 1 for NS_SUPG
+
+
+Solving time step 1 (cur_dtime: 10.000000, cur_time (t^(n+1)): 10.000000)
+CFL_min = 0.000000, CFL_max = 0.000000, CFL_average = 0.000000
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 1).
+
+After 6 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.015851
+
+Norm for ns_supg(u_k, prev. u_k): 1.000000
+
+Solving for nonlin. (nonl. iter step 2) convergence (time step 1).
+
+After 5 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.015786
+
+Norm for ns_supg(u_k, prev. u_k): 0.229691
+
+Solving for nonlin. (nonl. iter step 3) convergence (time step 1).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.039482
+
+Norm for ns_supg(u_k, prev. u_k): 0.181249
+
+Solving for nonlin. (nonl. iter step 4) convergence (time step 1).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.037731
+
+Norm for ns_supg(u_k, prev. u_k): 0.067210
+
+Norm ns_supg (u_n, prev. u_n): 1.000000
+
+
+Solving time step 2 (cur_dtime: 10.000000, cur_time (t^(n+1)): 20.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.292538
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 2).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.048060
+
+Norm for ns_supg(u_k, prev. u_k): 0.075903
+
+Norm ns_supg (u_n, prev. u_n): 0.075903
+
+
+Solving time step 3 (cur_dtime: 10.000000, cur_time (t^(n+1)): 30.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.190387
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 3).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.049746
+
+Norm for ns_supg(u_k, prev. u_k): 0.048783
+
+Norm ns_supg (u_n, prev. u_n): 0.048783
+
+
+Solving time step 4 (cur_dtime: 10.000000, cur_time (t^(n+1)): 40.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.142008
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 4).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.051261
+
+Norm for ns_supg(u_k, prev. u_k): 0.034298
+
+Norm ns_supg (u_n, prev. u_n): 0.034298
+
+
+Solving time step 5 (cur_dtime: 10.000000, cur_time (t^(n+1)): 50.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.119536
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 5).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.060266
+
+Norm for ns_supg(u_k, prev. u_k): 0.019117
+
+Norm ns_supg (u_n, prev. u_n): 0.019117
+
+
+Solving time step 6 (cur_dtime: 10.000000, cur_time (t^(n+1)): 60.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.093172
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 6).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.055375
+
+Norm for ns_supg(u_k, prev. u_k): 0.012567
+
+Norm ns_supg (u_n, prev. u_n): 0.012567
+
+
+Solving time step 7 (cur_dtime: 10.000000, cur_time (t^(n+1)): 70.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.074603
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 7).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.061486
+
+Norm for ns_supg(u_k, prev. u_k): 0.006387
+
+Norm ns_supg (u_n, prev. u_n): 0.006387
+
+
+Solving time step 8 (cur_dtime: 10.000000, cur_time (t^(n+1)): 80.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.074945
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 8).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.055212
+
+Norm for ns_supg(u_k, prev. u_k): 0.003980
+
+Norm ns_supg (u_n, prev. u_n): 0.003980
+
+
+Solving time step 9 (cur_dtime: 10.000000, cur_time (t^(n+1)): 90.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.059258
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 9).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.060424
+
+Norm for ns_supg(u_k, prev. u_k): 0.001777
+
+Norm ns_supg (u_n, prev. u_n): 0.001777
+
+
+Solving time step 10 (cur_dtime: 10.000000, cur_time (t^(n+1)): 100.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.068137
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 10).
+
+After 4 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.044963
+
+Norm for ns_supg(u_k, prev. u_k): 0.000947
+
+Norm ns_supg (u_n, prev. u_n): 0.000947
+
+
+Solving time step 11 (cur_dtime: 10.000000, cur_time (t^(n+1)): 110.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.062925
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 11).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.107544
+
+Norm for ns_supg(u_k, prev. u_k): 0.000533
+
+Norm ns_supg (u_n, prev. u_n): 0.000533
+
+
+Solving time step 12 (cur_dtime: 10.000000, cur_time (t^(n+1)): 120.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.065960
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 12).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106619
+
+Norm for ns_supg(u_k, prev. u_k): 0.000305
+
+Norm ns_supg (u_n, prev. u_n): 0.000305
+
+
+Solving time step 13 (cur_dtime: 10.000000, cur_time (t^(n+1)): 130.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064213
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 13).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106498
+
+Norm for ns_supg(u_k, prev. u_k): 0.000175
+
+Norm ns_supg (u_n, prev. u_n): 0.000175
+
+
+Solving time step 14 (cur_dtime: 10.000000, cur_time (t^(n+1)): 140.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.065216
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 14).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106457
+
+Norm for ns_supg(u_k, prev. u_k): 0.000100
+
+Norm ns_supg (u_n, prev. u_n): 0.000100
+
+
+Solving time step 15 (cur_dtime: 10.000000, cur_time (t^(n+1)): 150.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064641
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 15).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106478
+
+Norm for ns_supg(u_k, prev. u_k): 0.000057
+
+Norm ns_supg (u_n, prev. u_n): 0.000057
+
+
+Solving time step 16 (cur_dtime: 10.000000, cur_time (t^(n+1)): 160.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064971
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 16).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106473
+
+Norm for ns_supg(u_k, prev. u_k): 0.000033
+
+Norm ns_supg (u_n, prev. u_n): 0.000033
+
+
+Solving time step 17 (cur_dtime: 10.000000, cur_time (t^(n+1)): 170.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064782
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 17).
+
+After 3 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.106479
+
+Norm for ns_supg(u_k, prev. u_k): 0.000019
+
+Norm ns_supg (u_n, prev. u_n): 0.000019
+
+
+Solving time step 18 (cur_dtime: 10.000000, cur_time (t^(n+1)): 180.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064890
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 18).
+
+After 2 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.252107
+
+Norm for ns_supg(u_k, prev. u_k): 0.000011
+
+Norm ns_supg (u_n, prev. u_n): 0.000011
+
+
+Solving time step 19 (cur_dtime: 10.000000, cur_time (t^(n+1)): 190.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064831
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 19).
+
+After 2 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.178279
+
+Norm for ns_supg(u_k, prev. u_k): 0.000006
+
+Norm ns_supg (u_n, prev. u_n): 0.000006
+
+
+Solving time step 20 (cur_dtime: 10.000000, cur_time (t^(n+1)): 200.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064862
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 20).
+
+After 2 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000000, convergence rate 0.221958
+
+Norm for ns_supg(u_k, prev. u_k): 0.000003
+
+Norm ns_supg (u_n, prev. u_n): 0.000003
+
+
+Solving time step 21 (cur_dtime: 10.000000, cur_time (t^(n+1)): 210.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064845
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 21).
+
+After 1 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.293306
+
+Norm for ns_supg(u_k, prev. u_k): 0.000002
+
+Norm ns_supg (u_n, prev. u_n): 0.000002
+
+
+Solving time step 22 (cur_dtime: 10.000000, cur_time (t^(n+1)): 220.000000)
+CFL_min = 0.000000, CFL_max = 40.000000, CFL_average = 3.064852
+
+Solving for nonlin. (nonl. iter step 1) convergence (time step 22).
+
+After 1 iterations of linear solver for ns_supg problem
+Convergence measure: 0.000001, convergence rate 0.536741
+
+Norm for ns_supg(u_k, prev. u_k): 0.000000
+
+Norm ns_supg (u_n, prev. u_n): 0.000000
+
+Norm ns_supg (u_n, prev. u_n) below n_epsilon: 0.000001. Stopping.
+
+Time total: 0.062393
+Opened file '/home/kazy/code/examples/pdd_ns_supg/LDC/nas_3x3//ns_supg_22.vtk' for Paraview mesh data
+Patch creation - time 0.000126
+Derivative recovery - time 0.000644
+
+Zienkiewicz-Zhu error estimator = 0.241569
+
+special Zienkiewicz-Zhu error estimator for LDC problem = 0.108143

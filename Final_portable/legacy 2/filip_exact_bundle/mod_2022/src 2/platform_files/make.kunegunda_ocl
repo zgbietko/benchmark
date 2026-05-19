@@ -1,0 +1,40 @@
+# C compiler
+#CC = gcc
+CC = icc
+
+# C++ compiler
+#CPPC = g++
+CPPC = icpc
+
+# Loader (to link with Fortran libraries)
+#LD = g++
+LD = icpc
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/usr/local/cuda/include/
+
+# Standard and/or local libraries
+LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -fopenmp -lpthread -lconfig -openmp -L/opt/AMDAPP/lib/x86_64/ -lOpenCL -lm 
+
+# sequential MKL version
+#LIB = -L$(MOD_FEM_OBJ_DIR) -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lconfig -L/opt/AMDAPP/lib/x86_64/ -lOpenCL -lm
+
+
+# C optimization and other flags
+CFL =  -O3 -Wconversion -openmp -DMULTITHREADED -DOPENCL_GPU -DTUNING
+#CFL = -O3 -lstdc++ -openmp
+
+# Loader optimization and other flags
+LDFL = -O3 -openmp -DMULTITHREADED -DOPENCL_GPU -DTUNING
+#LDFL = -O3 -openmp
+
+

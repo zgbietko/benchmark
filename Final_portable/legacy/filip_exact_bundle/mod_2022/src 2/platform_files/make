@@ -1,0 +1,13 @@
+config:
+	@echo "System variable MOD_FEM_ARCH is not specified correctly."
+	@echo "Set MOD_FEM_DIR system variable to the name of the directory "
+	@echo "where the current src directory resides. Set MOD_FEM_ARCH "
+	@echo "system variable to some arbitrarily chosen platform name, "
+	@echo "obj and binary files are separately created for each platform."
+	@echo "During compilation file make.MOD_FEM_ARCH placed in"
+	@echo "MOD_FEM_DIR/src/platform_files is read to set platform dependent "
+	@echo "options, obj files are placed in MOD_FEM_DIR/obj/MOD_FEM_ARCH"
+	@echo "directory and binary files are placed in"
+	@echo "MOD_FEM_DIR/bin/MOD_FEM_ARCH directory." 
+
+

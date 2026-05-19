@@ -1,0 +1,43 @@
+# for LINUX:
+# add libraries: -llapack -lblas 
+# or ../lib/lapack_linux.a ../lib/blas_linux.a 
+
+# C compiler
+CC = icc 
+
+# C++ compiler
+CPPC = icpc
+
+# Loader (to link with Fortran libraries)
+LD = icc
+
+# C++ Loader (to link with pardiso solver)
+LDPP = icpc
+
+# Archiver
+AR = ar r
+
+# For removing files
+RM = rm -f
+
+# Include directory for MOD_FEM code
+INC_DIR = $(MOD_FEM_DIR)/src/include
+
+# Include directories
+INC = -I$(MOD_FEM_DIR)/src/include -I/opt/intel/mkl/include -I/usr/local/cuda/include -I/usr/include/boost -I/opt/intel/vtune_amplifier_xe/include -I$(HOME)/local/include -I$(HOME)/local/include/boost
+#
+# # Standard and/or local libraries
+LIB = -L$(MOD_FEM_OBJ_DIR) -L/opt/intel/mkl/lib/intel64 -L/usr/lib/x86_64-linux-gnu/ -L/opt/intel/vtune_amplifier_xe/lib64 -L$(HOME)/local/lib -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -lstdc++ -lboost_regex -lboost_system -lboost_filesystem -lconfig -littnotify
+
+# C optimization and other flags
+#CFL =  -DDEBUG -DDEBUG_MMM -DDEBUG_APM -DDEBUG_SIM -DDEBUG_LSM -g -Wconversion
+CFL = -O3 -xHost -DMULTITHREADED -DLAPLACE -DOFFLOAD_MIC -fopenmp -DREGISTERS
+#CFL = -O0 -DMULTITHREADED -DLAPLACE -DOFFLOAD_MIC -fopenmp -DREGISTERS
+#-DTEST_SCALAR
+#-DLAPLACE
+
+
+# Loader optimization and other flags
+#LDFL = -g
+#LDFL = -O0 -DMULTITHREADED -DLAPLACE -DOFFLOAD_MIC -fopenmp -DREGISTERS
+LDFL = -O3 -xHost -DMULTITHREADED -DLAPLACE -DOFFLOAD_MIC -fopenmp -DREGISTERS

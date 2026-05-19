@@ -1,0 +1,68 @@
+{
+  "apple": {
+    "metal": {
+      "gpu/metal/benchmarks/run_metal_bandwidth.py": ["--runs", "9", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/metal/benchmarks/run_metal_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/metal/benchmarks/run_metal_compute_fma.py": ["--runs", "7", "--vector-len", "4194304", "--inner-iters", "2000", "5000", "10000", "20000"],
+      "gpu/metal/benchmarks/run_metal_compute_fma_peak.py": ["--runs", "5", "--vector-lens", "262144", "1048576", "4194304", "16777216", "--inner-iters", "2000", "5000", "10000", "20000"]
+    },
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304,16777216", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    }
+  },
+  "nvidia": {
+    "cuda": {
+      "gpu/cuda/benchmarks/run_cuda_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4,16,64,256,1024,2048"],
+      "gpu/cuda/benchmarks/run_cuda_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/cuda/benchmarks/run_cuda_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/cuda/benchmarks/run_cuda_compute_fma_peak.py": ["--n-elements", "1048576,4194304,16777216", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    },
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304,16777216", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    }
+  },
+  "amd": {
+    "hip": {
+      "gpu/hip/benchmarks/run_hip_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/hip/benchmarks/run_hip_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/hip/benchmarks/run_hip_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "12"],
+      "gpu/hip/benchmarks/run_hip_compute_fma_peak.py": ["--n-elements", "250000", "1000000", "4000000", "16000000", "--iters-inner", "500", "1000", "2000", "5000", "--runs-per-point", "9"]
+    },
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304,16777216", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    }
+  },
+  "intel": {
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "512", "1024"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "2097152", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    }
+  },
+  "intel_arc": {
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "1024", "2048"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536,131072"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "4194304", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304,16777216", "--iters-inner", "2000,5000,10000,20000", "--runs-per-config", "5"]
+    }
+  },
+  "intel_igpu": {
+    "opencl": {
+      "gpu/opencl/benchmarks/run_opencl_bandwidth.py": ["--runs", "9", "--iters", "64", "--sizes-mb", "4", "16", "64", "256", "512", "1024"],
+      "gpu/opencl/benchmarks/run_opencl_pointer_latency.py": ["--runs", "9", "--iters-inner", "4000000", "--sizes-kb", "4,16,64,256,1024,4096,16384,65536"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma.py": ["--n-elements", "2097152", "--iters-inner", "2000", "--runs", "7"],
+      "gpu/opencl/benchmarks/run_opencl_compute_fma_peak.py": ["--n-elements", "1048576,4194304", "--iters-inner", "2000,5000,10000", "--runs-per-config", "5"]
+    }
+  }
+}

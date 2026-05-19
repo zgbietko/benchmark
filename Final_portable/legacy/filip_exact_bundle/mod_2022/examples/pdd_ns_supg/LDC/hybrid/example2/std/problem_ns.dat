@@ -1,0 +1,25 @@
+1000                    Max. no. of timesteps
+0.01                    delta_t
+0                       Auto graphics dump every x iteration (put 0 if no)
+0.0001                  Auto graphics dump epsilon
+1000                     Reynolds
+1.0                     Characteristics length
+1.0                     Characteristics velocity
+1.0e7                   Penalty
+1.0                    k-epsilon
+0.00001                 n-epsilon (stop criterion for stationary problem, put 0 if no)
+12			Number of boundary conditions & pins
+VEL 6 1.0 0.0 0.0	Velocity on boundary
+SYMM 1			Symmetry (normal vel = 0)
+SYMM 2
+NOSLIP 3		No-slip (vel = 0)
+NOSLIP 4
+NOSLIP 5
+PRESSUREPIN 0.0 0.0 0.0 0.0	Pressure pin node coor and p value
+PRESSUREPIN 0.0 0.0 0.05 0.0
+VELOCITYPIN 1.0 1.0 0.0 0.0 0.0 0.0	Velocity pin node coor and v vector
+VELOCITYPIN 1.0 1.0 0.05 0.0 0.0 0.0
+VELOCITYPIN 0.0 1.0 0.0 0.0 0.0 0.0
+VELOCITYPIN 0.0 1.0 0.05 0.0 0.0 0.0
+
+

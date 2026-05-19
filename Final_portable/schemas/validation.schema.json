@@ -1,0 +1,4 @@
+{
+  "type": "object",
+  "required": ["scope", "status", "pass_count", "warning_count", "fail_count", "blocked", "reason", "records"]
+}

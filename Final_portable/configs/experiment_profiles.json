@@ -1,0 +1,41 @@
+{
+  "quick": {
+    "description": "Fast smoke profile for local validation",
+    "platform_profile": "auto",
+    "arch": "auto",
+    "gpu_backend": "auto",
+    "with_real_kernels": false,
+    "quality_scope": "session",
+    "quality_strict": false,
+    "real_kernels_backend": "cpu",
+    "real_kernels_runs": 1,
+    "real_kernels_gemm_shapes": "128x128x128",
+    "real_kernels_reduction_sizes": "1000000"
+  },
+  "paper": {
+    "description": "Balanced profile for reproducible thesis figures",
+    "platform_profile": "auto",
+    "arch": "auto",
+    "gpu_backend": "auto",
+    "with_real_kernels": true,
+    "quality_scope": "session",
+    "quality_strict": true,
+    "real_kernels_backend": "all",
+    "real_kernels_runs": 3,
+    "real_kernels_gemm_shapes": "512x512x512,1024x1024x1024",
+    "real_kernels_reduction_sizes": "1000000,5000000,10000000,50000000"
+  },
+  "full": {
+    "description": "Extended campaign profile",
+    "platform_profile": "auto",
+    "arch": "auto",
+    "gpu_backend": "all",
+    "with_real_kernels": true,
+    "quality_scope": "session",
+    "quality_strict": true,
+    "real_kernels_backend": "all",
+    "real_kernels_runs": 5,
+    "real_kernels_gemm_shapes": "512x512x512,1024x1024x1024,2048x2048x2048",
+    "real_kernels_reduction_sizes": "1000000,5000000,10000000,50000000,100000000"
+  }
+}

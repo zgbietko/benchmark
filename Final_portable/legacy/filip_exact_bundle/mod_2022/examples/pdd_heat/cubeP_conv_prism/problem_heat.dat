@@ -1,0 +1,163 @@
+/* ------------------------------------------------------------	*/
+/* IMPORTANT:                                                	*/
+/* 	- both, C and C++ style comments are supported      	*/
+/*	- ALWAYS use "." (dot) when entering flp numbers!	*/
+/*	  For ex. instead of 20, put 20.0			*/
+/*	- Use same unit system for all values!			*/
+/* ------------------------------------------------------------ */
+
+problem:
+(
+{ 
+
+/* CONTROL PARAMETERS - GENERIC: FIELDS REQUIRED FOR ALL PROBLEMS */
+
+  name = 110; // int: 10<= name < 20 - LDC problem
+
+/* mesh, field, materials & bc input filenames */
+
+  mesh_type = "j"; // "j" - jk mesh, "p" - standard prismatic mesh format
+             // work_dir: specified by the program input argument
+             // interactive_input: initialized by the main procedure
+             // interactive_output: initialized by the main procedure
+
+  mesh_file_in = "mesh_jk_11x11.dat";           // mesh_filename
+  field_file_in = "z";  // field_filename or "z" for zero field
+                        // or "i" for initialize with provided function
+
+  //mesh_file_in = "../owiewkaTetrPrzycieta.nas";           // mesh_filename
+  //mesh_file_in = "mesh_jk2.dat";           // mesh_filename
+  //mesh_file_in = "cubeP.inp";           // mesh_filename
+  //field_file_in = "plaS.inp";  // field_filename or "z" for zero field
+  //field_file_in = "start_heat_down.inp";  // field_filename or "z" for zero field
+  //mesh_file_in = "mesh50.dmp";           // mesh_filename
+  //field_file_in = "plate_field_heat3.dmp";  // field_filename or "z" for zero field
+  //mesh_file_in = "../40565.nas";           // mesh_filename
+  
+  bc_file = "bc_heat.dat";	                  // bc_filename
+	      	      
+/* name patterns (with no extension!) for mesh & file dump files  */
+
+  mesh_file_out = "mesh";      // mesh_dmp_filepattern
+  field_file_out = "field_heat";    // field_dmp_filepattern
+
+/* CONTROL PARAMETERS - SPECIFIC TO HEAT PROBLEMS */
+
+  penalty = 1.0e7; //double: for Dirichlet boundary conditions enforcement
+
+  materials_file = "materials_database.dat";       // material_filename
+  //materials_file = "materials_heat.dat";       // material_filename
+  //materials_file = "materials_HS652_220ppm.dat";       // material_filename
+
+  reference_temperature = 30.0; // double:
+  ambient_temperature = 30.0; // double:
+
+
+/* TIME INTEGRATION PARAMETERS - GENERIC: FOR ALL PROBLEMS */
+
+  time_integration_type = 1; // int: 1 -  alpha (a.k.a. theta) scheme   
+  implicitness_parameter = 1.0; // alpha, double: 0.5-Crank-Nicholson, 1.0-implicit Euler 
+
+  current_timestep = 0; // int: beginning of simulation (for dump files != 0)
+  current_time = 0.0; // double: beginning of simulation (for dump files != 0.0)
+
+/* delta time */
+
+  current_timestep_length =  1000.1; //double: if < 0 denotes required CFL number
+  previous_timestep_length = 1000.1;//double: important for adaptive timestep length algorithms
+
+/* stopping criteria: simulation will stop wichever comes first */
+
+  final_timestep = 100; // int
+  final_time = 50000.0; // double
+  time_error_type = 0; // int: can be any of Lp norms (max norm assumed now)
+  time_error_tolerance = 1.0e-9; // double: a.k.a conv_meas a.k.a n_epsilon
+
+  time_monitoring_level = 0; // the level of output: 0 - no output, 3 - full output  
+      
+/* data dumps intervals and accuracy setttings */
+
+  full_dump_intv = 0; //int: interval for restart dumps (0 - no dumps)
+  graph_dump_intv = 1; //int: interval for graphics dumps (0 - no dumps)
+  graph_dump_accu = 0; //int: accuracy ( 0 - full accuracy)
+
+
+/* NONLINEAR SOLVER PARAMETERS - GENERIC: FOR ALL PROBLEMS */
+
+  nonlinear_solver_type = 0; // int: not used yet   
+
+/* stop criteria for nonlin iterations - */
+/* will stop whichever comes first */ 
+
+  max_nonl_iter = 10; //int
+  nonl_error_type = 1; // int: can be any of Lp norms (L0 i.e. max norm assumed)
+  nonl_error_tolerance = 0.1; //1.0e-9; // double: a.k.a conv_meas a.k.a k_epsilon
+             // high value of nonl_error_tolerance mean we do not care about
+             // nonlinear convergence - typical for pseudo-time stepping algorithms
+             //                         applied to stationary flow problems 	      
+  nonl_monitoring_level = 0; // the level of output: 0 - no output, 3 - full output  
+
+	      
+/* LINEAR SOLVER PARAMETERS - GENERIC: FOR ALL PROBLEMS */
+
+/* parameters here takes precedence over more detailed parameters specified in */
+/* solver input files !!! */
+
+  linear_solver_type = 1; // int: 
+                        /*       0 - direct solver */
+                        /*       1 - preconditioned GMRES */
+                        /*       2 - multigrid preconditioned  GMRES */
+                        /*      10 - standard iterations */
+                        /*      20 - V-cycle multigrid */
+
+  //solver_file = "pardiso.dat";            // solver_filename
+  solver_file = "mkb.dat";             // solver_filename
+  //solver_file = "";             // solver_filename
+
+/* 3 PARAMETERS BELOW  valid only for iterative solvers */
+/* 3 PARAMETERS BELOW are read only for empty solver_file */
+/* stop criteria for linear solver iterations - */
+/* iterations will stop whichever comes first */ 
+
+  max_linear_solver_iter = 100; //int
+  linear_solver_error_type = 0; // int: 
+                        /*      0 - relative to initial residual */
+                        /*      1 - absolute residual */
+                        /*      2 - relative to rhs */
+  linear_solver_error_tolerance = 1.e-6; // double: a.k.a conv_meas 
+                // 1.e-6 for relative residual reduction - sufficient for stationary flows
+
+  lin_solv_monitoring_level = 1; // the level of output: 0 - no output, 3 - full output  
+	      
+
+/* ADAPTATION PARAMETERS - GENERIC: FOR ALL PROBLEMS */	      
+	      
+  adapt_type = 0; //int
+            /* 
+            PDC_NO_ADAPT    0 // no adaptations 
+            PDC_ADAPT_EXACT 1 // adaptations based on the knowledge of exact solution
+            PDC_ADAPT_ZZ    2 // adaptations based on Zienkiewicz-Zhu error estimate
+            PDC_ADAPT_EXPL  3 // adaptations based on explicit residual error estimate
+            */
+
+  adapt_interval = 0; //int: interval (in timesteps) for adaptations	      
+
+  adapt_maxgen = 2; // int: to limit adaptations at certain generation level
+  adapt_maxgendiff = 0; // int: to limit the difference in generation levels for
+                        //      neighbouring elements (1 - one irregular meshes)
+
+  adapt_tolerance = 1.e-6; //1.e-6; //double: element error level above which element is broken
+             // convention: tolerance < 0.1 - actual value of error
+             //                       > 0.1 - error relative to maximal element error
+             //                       > 1.0 - error relative to mean element error
+
+  adapt_deref_ratio = 0.0; //double: for the group of sons of an element
+             // the ratio of the summed sons' errors to the refinement error
+             // below which derefinement of sons to the father element occurs
+             // 0 - no derefinements, > 1.0 - danger of refining and derefining in turns
+             // 0.2 - rational, safe value
+      
+  adapt_monitoring_level = 2; // the level of output: 0 - no output, 3 - full output  
+	      
+}
+);

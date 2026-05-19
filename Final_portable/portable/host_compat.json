@@ -1,0 +1,306 @@
+{
+  "bundle_root": "/Users/mateusznytko/Desktop/Praca/Doktorat/Testy/Testy_grudzien/apple_microbench_variant2_streamfix/Final_portable",
+  "system": {
+    "os": "Darwin",
+    "release": "25.3.0",
+    "machine": "arm64",
+    "hostname": "MacBook-Pro-Mateusz.local",
+    "python": "3.13.7"
+  },
+  "cpu": {
+    "model": "Apple M2 Pro",
+    "topology": {
+      "logical_cpus": 12,
+      "physical_cpus": 12,
+      "perf_logical_cpus": 8,
+      "eff_logical_cpus": 4,
+      "perf_physical_cpus": 8,
+      "eff_physical_cpus": 4,
+      "model": "heterogeneous",
+      "source": "sysctl"
+    }
+  },
+  "commands": {
+    "python3": true,
+    "gcc": true,
+    "clang": true,
+    "nvcc": false,
+    "hipcc": false,
+    "nvidia-smi": false,
+    "rocm-smi": false,
+    "clinfo": false,
+    "powermetrics": true,
+    "icx": false
+  },
+  "python_modules": {
+    "numpy": {
+      "ok": true,
+      "error": ""
+    },
+    "matplotlib": {
+      "ok": true,
+      "error": ""
+    },
+    "pyopencl": {
+      "ok": false,
+      "error": "ModuleNotFoundError: No module named 'pyopencl'"
+    },
+    "pynvml": {
+      "ok": false,
+      "error": "ModuleNotFoundError: No module named 'pynvml'"
+    },
+    "cupy": {
+      "ok": false,
+      "error": "ModuleNotFoundError: No module named 'cupy'"
+    },
+    "coremltools": {
+      "ok": false,
+      "error": "ModuleNotFoundError: No module named 'coremltools'"
+    },
+    "Metal": {
+      "ok": true,
+      "error": ""
+    }
+  },
+  "gpu": {
+    "available_backends": {
+      "metal": true,
+      "cuda": false,
+      "hip": false,
+      "opencl": false
+    },
+    "backend_status": {
+      "metal": {
+        "available": true,
+        "reason": ""
+      },
+      "cuda": {
+        "available": false,
+        "reason": ""
+      },
+      "hip": {
+        "available": false,
+        "reason": ""
+      },
+      "opencl": {
+        "available": false,
+        "reason": ""
+      }
+    },
+    "recommended_backend": "metal",
+    "recommended_fem_backend": "metal",
+    "opencl_devices": []
+  },
+  "exact_reference": {
+    "available_now": true,
+    "status": "supported",
+    "mode": "exact_reference_metal_port",
+    "replay_supported": true,
+    "requires_external_assets_for_replay": true,
+    "candidate_mod_dirs": [],
+    "reason": "Metal exact-style port jest dostepny. Replay 1:1 wymaga dumpow OpenCL z kampanii Linux/OpenCL."
+  },
+  "energy": {
+    "entries": [
+      {
+        "name": "powermetrics",
+        "status": "conditional",
+        "admin_required": true,
+        "scope": "cpu+gpu",
+        "reason": "Na macOS zwykle wymaga sudo; bez tego pomiar przechodzi w best-effort / unsupported."
+      }
+    ],
+    "warnings": []
+  },
+  "portable_bundle": {
+    "build_supported": true,
+    "run_supported_on_host": false,
+    "run_reason": "Launcher portable jest linuxowy; ten host nie jest Linuxem."
+  },
+  "workflow_support": {
+    "cpu_benchmark": {
+      "status": "supported",
+      "reason": "CPU benchmarki moga budowac biblioteki natywne."
+    },
+    "gpu_benchmark": {
+      "status": "supported",
+      "reason": "Dostepne backendy GPU: metal."
+    },
+    "cpu_real_kernels": {
+      "status": "supported",
+      "reason": "CPU real kernels korzystaja z tego samego hosta i numpy/C backendu."
+    },
+    "gpu_real_kernels": {
+      "status": "supported",
+      "reason": "GPU real kernels pojda przez: metal."
+    },
+    "ai_accel": {
+      "status": "supported",
+      "reason": "CPU fallback jest dostepny wszedzie; sciezki akcelerowane zalezne od backendu i runtime vendorowego.",
+      "accelerated_backends": [
+        "metal"
+      ]
+    },
+    "fem_option_validation": {
+      "status": "supported",
+      "reason": "Walidacja FEM ma resolved backend: metal."
+    },
+    "filip_original": {
+      "status": "supported",
+      "reason": "Portable sweep dziala na CPU i wspieranych backendach GPU."
+    },
+    "filip_exact_reference": {
+      "status": "supported",
+      "reason": "Metal exact-style port jest dostepny. Replay 1:1 wymaga dumpow OpenCL z kampanii Linux/OpenCL.",
+      "mode": "exact_reference_metal_port"
+    },
+    "filip_autotune": {
+      "status": "supported",
+      "reason": "Autotuning korzysta z tego samego problemu FEM-like / Filip co portable sweep."
+    },
+    "filip_firefly": {
+      "status": "supported",
+      "reason": "Firefly korzysta z tej samej warstwy wykonawczej co autotuning."
+    },
+    "profiler_correlation": {
+      "status": "supported",
+      "reason": "Analiza korelacyjna jest lokalna, zalezy od obecnosci artefaktow kampanii."
+    },
+    "full_thesis_pipeline": {
+      "status": "supported",
+      "reason": "Pelny pipeline jest dostepny; exact_reference moze byc lokalny albo warunkowy."
+    },
+    "web_gui": {
+      "status": "supported",
+      "reason": "Statyczny frontend i lokalny serwer HTTP sa dostepne."
+    },
+    "desktop_gui": {
+      "status": "supported",
+      "reason": "tkinter + TkAgg sa dostepne."
+    }
+  },
+  "package_support": {
+    "benchmarks": {
+      "cpu": true,
+      "gpu": true
+    },
+    "real_kernels": {
+      "cpu": true,
+      "gpu": true
+    },
+    "filip": {
+      "portable_case": true,
+      "exact_reference": true,
+      "exact_reference_conditional": false
+    },
+    "full": {
+      "cpu_path": true,
+      "gpu_path": true,
+      "exact_reference": true,
+      "exact_reference_conditional": false
+    }
+  },
+  "gui": {
+    "web": {
+      "status": "supported",
+      "reason": "Statyczny frontend i lokalny serwer HTTP sa dostepne."
+    },
+    "desktop": {
+      "status": "supported",
+      "reason": "tkinter + TkAgg sa dostepne."
+    }
+  },
+  "platform_matrix": [
+    {
+      "profile": "apple",
+      "description": "Apple Silicon + Apple GPU",
+      "arch": "apple",
+      "backend_preference": [
+        "metal",
+        "opencl"
+      ],
+      "all_backends": [
+        "metal",
+        "opencl"
+      ],
+      "gpu_path": "metal -> opencl fallback",
+      "exact_path": "metal exact-style port; replay 1:1 po dostarczeniu dumpow OpenCL",
+      "ai_path": "metal + Core ML probe"
+    },
+    {
+      "profile": "nvidia",
+      "description": "x86 + NVIDIA GPU",
+      "arch": "x86",
+      "backend_preference": [
+        "cuda",
+        "opencl"
+      ],
+      "all_backends": [
+        "cuda",
+        "opencl"
+      ],
+      "gpu_path": "cuda -> opencl fallback",
+      "exact_path": "exact_reference przez OpenCL/oneAPI, nie przez CUDA",
+      "ai_path": "cuda / cupy; INT8 i FP16 najlepsze przy vendor runtime"
+    },
+    {
+      "profile": "amd",
+      "description": "x86 + AMD GPU",
+      "arch": "amd",
+      "backend_preference": [
+        "hip",
+        "opencl"
+      ],
+      "all_backends": [
+        "hip",
+        "opencl"
+      ],
+      "gpu_path": "hip -> opencl fallback",
+      "exact_path": "exact_reference przez OpenCL/oneAPI, nie przez HIP",
+      "ai_path": "HIP/OpenCL w tej wersji glownie sciezki diagnostyczne / proxy"
+    },
+    {
+      "profile": "intel_arc",
+      "description": "x86 + Intel Arc (OpenCL baseline)",
+      "arch": "intel",
+      "backend_preference": [
+        "opencl"
+      ],
+      "all_backends": [
+        "opencl"
+      ],
+      "gpu_path": "opencl",
+      "exact_path": "OpenCL + oneAPI jest naturalna sciezka exact",
+      "ai_path": "OpenCL / CPU fallback; vendor-native AI nie jest glowna sciezka tej wersji"
+    },
+    {
+      "profile": "intel_igpu",
+      "description": "x86 + Intel iGPU (OpenCL baseline)",
+      "arch": "intel",
+      "backend_preference": [
+        "opencl"
+      ],
+      "all_backends": [
+        "opencl"
+      ],
+      "gpu_path": "opencl",
+      "exact_path": "OpenCL + oneAPI",
+      "ai_path": "OpenCL / CPU fallback"
+    }
+  ],
+  "warnings": [
+    "Portable launcher jest przygotowany na host Linux; na tym hoście mozna go zbudowac, ale nie uruchomic w trybie pendrive-run.",
+    "Na macOS energia/moc wymaga uruchomienia z uprawnieniami administratora dla wiarygodnych danych."
+  ],
+  "limitations": {
+    "drivers": "Projekt nie przenosi sterownikow GPU, CUDA, ROCm ani runtime systemowego OpenCL. Host musi je miec lokalnie.",
+    "exact_reference": "Apple: exact-style Metal port dziala lokalnie, replay wymaga dumpow OpenCL. Linux: exact_reference wymaga OpenCL + oneAPI + assets mod_2022.",
+    "energy": "Warstwa energii jest wieloplatformowa tylko best-effort; jakosc pomiaru zalezy od licznikow i uprawnien hosta."
+  },
+  "summary": {
+    "multiplatform_core": true,
+    "portable_same_workflows": true,
+    "portable_same_runtime_prereqs": false,
+    "recommended_platform_profile": "apple"
+  }
+}

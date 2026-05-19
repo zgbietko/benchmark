@@ -1,0 +1,96 @@
+# Makefile for heat convection-diffusion with SUPG stabilization
+
+$(MOD_FEM_OBJ_DIR)/pdl_heat_lib.a : \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_time_integration.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_paraview_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_weakform.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_materials.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_bc.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_problem_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_materials_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_bc_io.o 
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/pds_heat_main.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_time_integration.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_adapt.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_paraview_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_weakform.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_materials.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_bc.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_problem_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_materials_io.o \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_bc_io.o 
+
+# Makefile for problem dependent module for convection-diffusion eqns and STD
+# with OpenCL support 
+$(MOD_FEM_OBJ_DIR)/pdl_heat_std_opencl_lib.a : \
+           $(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf_std_opencl.o
+	$(AR) $@ $(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf_std_opencl.o 
+
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_main.o : main/pds_heat_main.c 
+	$(CC) $(CFL) -c main/pds_heat_main.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_time_integration.o : \
+	time_integration/pds_heat_time_integration.c 
+	$(CC) $(CFL) -c time_integration/pds_heat_time_integration.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf.o : \
+	linear_solver_interface/pds_heat_ls_intf.c 
+	$(CC) $(CFL) -c linear_solver_interface/pds_heat_ls_intf.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_ls_intf_std_opencl.o : \
+	linear_solver_interface/opencl/std_lin/pds_heat_ls_intf_opencl.c 
+	$(CC) $(CFL) -c linear_solver_interface/opencl/std_lin/pds_heat_ls_intf_opencl.c \
+	 -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_adapt.o : \
+	adaptation/pds_heat_adapt.c 
+	$(CC) $(CFL) -c adaptation/pds_heat_adapt.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_io.o : \
+	input_output/pds_heat_io.c 
+	$(CC) $(CFL) -c input_output/pds_heat_io.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_paraview_io.o : \
+	input_output/pds_heat_paraview_io.c 
+	$(CC) $(CFL) -c input_output/pds_heat_paraview_io.c -o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_weakform.o : \
+	../pdd_heat/weak_formulation/pds_heat_weakform.c 
+	$(CC) $(CFL) -c ../pdd_heat/weak_formulation/pds_heat_weakform.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_problem_io.o : \
+	../pdd_heat/input_output/pds_heat_problem_io.c 
+	$(CC) $(CFL) -c ../pdd_heat/input_output/pds_heat_problem_io.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_materials.o : \
+	../pdd_heat/materials/pds_heat_materials.c 
+	$(CC) $(CFL) -c ../pdd_heat/materials/pds_heat_materials.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_materials_io.o : \
+	../pdd_heat/input_output/pds_heat_materials_io.c 
+	$(CC) $(CFL) -c ../pdd_heat/input_output/pds_heat_materials_io.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_bc.o : \
+	../pdd_heat/weak_formulation/pds_heat_bc.c 
+	$(CC) $(CFL) -c ../pdd_heat/weak_formulation/pds_heat_bc.c \
+	-o $@ $(INC)
+
+$(MOD_FEM_OBJ_DIR)/pds_heat_bc_io.o : \
+	../pdd_heat/input_output/pds_heat_bc_io.c 
+	$(CC) $(CFL) -c ../pdd_heat/input_output/pds_heat_bc_io.c \
+	-o $@ $(INC)
+
+
+clean:
+	rm -f *~ *.o *.a

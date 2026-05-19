@@ -1,0 +1,4 @@
+\trunk\modular_fem_code_2009\mesh\meshBFS_TEST\jk\L20 - jk
+\trunk\modular_fem_code_2009\mesh\meshBFS_TEST\nas\L20 - nas/hybrid
+
+bc bc_jk_bfs2111_20.dat bc_jk_bfs5201_20.dat - you can use this bc in hybrid meshes

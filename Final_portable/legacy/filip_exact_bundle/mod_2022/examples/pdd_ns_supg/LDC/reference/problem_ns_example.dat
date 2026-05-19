@@ -1,0 +1,12 @@
+1			Number of materials
+1 300			Material number, Reynolds
+1 1.0			Material number, Characteristics length
+1 1.0			Material number, Characteristics velocity
+6			Number of boundary conditions
+6 1.0 0.0 0.0		Boundary condition number, velocity (Dirichlet)
+1 0.0 0.0 0.0		No-slip (Dirichlet)
+2 0.0 0.0 0.0		No-slip (Dirichlet)
+3 0.0 0.0 0.0		No-slip (Dirichlet)
+4 0.0 0.0 0.0		No-slip (Dirichlet)
+5 0.0 0.0 0.0		No-slip (Dirichlet)
+

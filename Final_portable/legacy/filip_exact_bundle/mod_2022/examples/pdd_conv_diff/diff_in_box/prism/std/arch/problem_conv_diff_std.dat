@@ -1,0 +1,55 @@
+NUM_OF_PROB
+1		single problem
+PROBLE_NAME
+101		102 - pure convection in x direction
+MESHFIL_TYP
+2		2-2D unstructured mesh data
+CONTROL_PAR
+INIT
+0		1-initial data applied at t=0 and supplied for linear solver
+NRMA
+-1		0-no material data specified (coefficients given in the code)
+SLOP
+0		1-default slope limiter
+IMPL
+0.5 		0.5 - Crank-Nicholson time integration scheme
+PENA
+0 		0-no penalty terms => NDG formulation
+FREE
+0.7		0.5 - strong slope limiting
+BCON
+1		1-set of BC data
+1		1-number for the first set (<10 - Dirichlet data)
+1.0		value
+ICON
+1		1-set of initial data
+0.0             0.0 - initialize solution to zero in all elements
+TIME_PARAMS
+1 2		1-default time integration scheme, 0-output level: no output 
+STEP
+0 5		1-current step, 20-final step
+TIME
+0.0 600		0-current time, 0.6-final time
+DTIM
+5.0 5.0		0.03-current time step length, 0.03-previous time step length
+CONV
+0 0.0 		0-convergence type, 0-convergence treshold
+INTV
+0 0 		0-no automatic dumpouts, 0-no automatic graphics output
+NONL_PARAMS
+0 0		0-no nonlinear solver, 0-output level: no output 
+CONV
+0 0 0 		0-max_iter, 0-convergence type, 0-convergence treshold 
+LINS_PARAMS
+1 2		1-single level GMRES solver, 2-convergence data output level
+CONV
+100 1 1.e-6 	100-max_iter, 1-rel_ini convergence, 1.e-6-convergence treshold
+ADAPT_PARAM
+1 2		0-no automatic adaptation, 0-output level: no output 
+CTRL
+1 2 1		0-interval between adaptations, 4-max_gen, 10-max_gen_diff  
+TOLE
+0.001 0.01 	tolerance: 0.005-global level, 0.01-ratio for de-refinements
+
+
+
