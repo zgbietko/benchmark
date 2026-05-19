@@ -161,7 +161,7 @@ else
 fi
 
 python - <<'PY'
-mods = ("numpy", "matplotlib", "pyopencl", "pynvml")
+mods = ("numpy", "matplotlib", "pyopencl", "pynvml", "yaml")
 for name in mods:
     try:
         __import__(name)

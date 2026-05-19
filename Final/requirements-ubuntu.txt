@@ -3,3 +3,4 @@ matplotlib>=3.8
 pyopencl>=2024.0
 pynvml>=11.5
 openpyxl>=3.1
+PyYAML>=6.0
